@@ -19,7 +19,7 @@ public struct Instruction: Identifiable, Codable, Equatable {
 }
 
 extension Instruction {
-    /// Seeded on first launch. "Auto Clean" is bound to ⌃⌘R by default (see AppState).
+    /// Seeded on first launch. "Auto Clean" is bound to ⇧⌘R by default (see AppState).
     public static let defaults: [Instruction] = [
         Instruction(
             name: "Auto Clean",

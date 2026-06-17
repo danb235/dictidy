@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Rewrite selected text **anywhere on your Mac** with one keyboard shortcut, using the Anthropic
-(Claude) API. Select text → press **⌃⌘R** → it's rewritten and pasted back in place.
+(Claude) API. Select text → press **⇧⌘R** → it's rewritten and pasted back in place.
 
 RewriteDB is an open-source, Anthropic-only reimagining of the (now abandoned) **RewriteCmd** app.
 It fixes the bug that broke the original: **model IDs are no longer baked into the binary.** The
@@ -13,7 +13,7 @@ model list is fetched live from Anthropic, so it stays current automatically —
 off and new ones appear with no app update.
 
 ```
-┌──────────────┐   ⌃⌘R    ┌───────────────┐   /v1/messages   ┌──────────┐
+┌──────────────┐   ⇧⌘R    ┌───────────────┐   /v1/messages   ┌──────────┐
 │ Any macOS app │ ───────▶ │   RewriteDB    │ ───────────────▶ │  Claude  │
 │ (selected text)│ ◀─────── │ (menu-bar app) │ ◀─────────────── │   API    │
 └──────────────┘  paste    └───────────────┘   rewritten text  └──────────┘
@@ -27,7 +27,7 @@ off and new ones appear with no app update.
 - **Bring your own Anthropic API key** — stored in the macOS Keychain; only ever sent to `api.anthropic.com`.
 - **Live, self-updating model list** — fetched from `GET /v1/models`; pick any current model, no app update needed.
 - **Unlimited custom instructions** — each with its own name, system prompt, and global shortcut.
-  Seeded with **Auto Clean** (⌃⌘R), **Formal**, **Friendly**, and **Translate to English**. No paywall.
+  Seeded with **Auto Clean** (⇧⌘R), **Formal**, **Friendly**, and **Translate to English**. No paywall.
 - **Guided setup** — the menu-bar icon shows status (⚠️ setup needed · spinning · **Aa** ready), and the
   menu lists exactly what's missing with one-click fixes.
 - **Launch at login** toggle.
@@ -44,6 +44,14 @@ off and new ones appear with no app update.
 ---
 
 ## Quick start
+
+One-liner — clone, set up signing, build, and launch:
+
+```sh
+git clone https://github.com/danb235/rewritedb.git && cd rewritedb && ./Scripts/setup-signing.sh && ./Scripts/build-app.sh && ./Scripts/run.sh
+```
+
+Or step by step:
 
 ```sh
 git clone https://github.com/danb235/rewritedb.git && cd rewritedb
@@ -71,7 +79,7 @@ The menu-bar icon turns into **Aa** once all three are done.
 ## Usage
 
 1. Select text in any app.
-2. Press **⌃⌘R** (Auto Clean), or pick an instruction from the menu-bar icon.
+2. Press **⇧⌘R** (Auto Clean), or pick an instruction from the menu-bar icon.
 3. The selection is replaced in place with Claude's rewrite (spinner shows while it works).
 
 Add, edit, reorder, and assign shortcuts to instructions under **Settings → Instructions** — unlimited,

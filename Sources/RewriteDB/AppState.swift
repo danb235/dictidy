@@ -79,7 +79,7 @@ final class AppState: ObservableObject {
         !hasAPIKey || selectedModelID.isEmpty || !accessibilityTrusted
     }
 
-    /// Human-readable shortcut for an instruction (e.g. "⌃⌘R"), or nil if none is bound.
+    /// Human-readable shortcut for an instruction (e.g. "⇧⌘R"), or nil if none is bound.
     func shortcutDescription(for instruction: Instruction) -> String? {
         KeyboardShortcuts.getShortcut(for: KeyboardShortcuts.Name(instruction.shortcutKey))?.description
     }
@@ -228,10 +228,10 @@ final class AppState: ObservableObject {
             instructions = Instruction.defaults
             defaults.set(true, forKey: Keys.seeded)
             persistInstructions()
-            // Bind "Auto Clean" (the first default) to ⌃⌘R out of the box.
+            // Bind "Auto Clean" (the first default) to ⇧⌘R out of the box.
             if let autoClean = instructions.first {
                 KeyboardShortcuts.setShortcut(
-                    .init(.r, modifiers: [.control, .command]),
+                    .init(.r, modifiers: [.shift, .command]),
                     for: KeyboardShortcuts.Name(autoClean.shortcutKey)
                 )
             }
