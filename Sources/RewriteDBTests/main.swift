@@ -69,6 +69,42 @@ check("preferredDefault falls back to first when no Sonnet",
           AnthropicModel(id: "claude-haiku-4-5", displayName: "Haiku"),
       ]) == "claude-opus-4-8")
 check("preferredDefault empty for empty list", AnthropicModel.preferredDefault(from: []) == "")
+check("sortedByDisplayName groups families and orders versions naturally",
+      [AnthropicModel(id: "s5",  displayName: "Claude Sonnet 5"),
+       AnthropicModel(id: "o41", displayName: "Claude Opus 4.10"),
+       AnthropicModel(id: "o4",  displayName: "Claude Opus 4.6"),
+       AnthropicModel(id: "f5",  displayName: "Claude Fable 5")]
+      .sortedByDisplayName().map(\.displayName)
+      == ["Claude Fable 5", "Claude Opus 4.6", "Claude Opus 4.10", "Claude Sonnet 5"])
+
+print("HistoryEntry")
+do {
+    let entry = HistoryEntry(date: Date(timeIntervalSince1970: 1_700_000_000),
+                             instructionName: "Auto Clean", model: "Claude Sonnet 5",
+                             before: "teh cat", after: "the cat")
+    let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(HistoryEntry.self, from: encoder.encode(entry))
+    check("Codable round-trip preserves fields (iso8601 date)", decoded == entry)
+} catch {
+    check("Codable round-trip preserves fields (iso8601 date)", false)
+}
+do {
+    var list: [HistoryEntry] = []
+    for i in 0..<150 {
+        list = list.prepending(
+            HistoryEntry(date: Date(timeIntervalSince1970: Double(i)),
+                         instructionName: "x", model: "m", before: "\(i)", after: "a"),
+            cappedTo: 100)
+    }
+    check("history caps at 100", list.count == 100)
+    check("history is newest-first", list.first?.before == "149")
+    check("history drops the oldest past the cap", !list.contains { $0.before == "0" })
+}
+check("history keeps all entries under the cap",
+      ([] as [HistoryEntry])
+        .prepending(HistoryEntry(instructionName: "x", model: "m", before: "b", after: "a"), cappedTo: 100)
+        .count == 1)
 
 print("AnthropicClient parsing")
 do {

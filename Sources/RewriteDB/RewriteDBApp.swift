@@ -16,6 +16,9 @@ struct RewriteDBApp: App {
                 // so the circular-arrows icon visibly spins until the rewrite completes.
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .rotationEffect(.degrees(Double(state.spinnerFrame) * 30))
+            } else if state.showErrorFlash {
+                // Transient "operation not possible" signal after a no-selection trigger.
+                Image(systemName: "nosign")
             } else if state.needsSetup {
                 // Draws attention until setup is complete; the menu explains what's missing.
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -29,6 +32,13 @@ struct RewriteDBApp: App {
             SettingsView()
                 .environmentObject(state)
                 .frame(width: 560, height: 640)
+        }
+        .windowResizability(.contentSize)
+
+        Window("Rewrite History", id: "history") {
+            HistoryView()
+                .environmentObject(state)
+                .frame(minWidth: 680, minHeight: 440)
         }
         .windowResizability(.contentSize)
     }

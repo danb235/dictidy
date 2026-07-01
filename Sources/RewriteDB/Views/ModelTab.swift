@@ -17,7 +17,7 @@ struct ModelTab: View {
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 Picker("Selected model", selection: $state.selectedModelID) {
-                    ForEach(state.models) { model in
+                    ForEach(state.models.sortedByDisplayName()) { model in
                         Text(model.displayName).tag(model.id)
                     }
                 }

@@ -36,6 +36,13 @@ enum KeychainService {
         return str
     }
 
+    /// True if a key is stored, WITHOUT reading the secret. Checking for the item's presence
+    /// doesn't decrypt it, so — unlike `load()` — macOS never shows a Keychain authorization
+    /// prompt. Use this for setup/UI state; only read the actual value when about to use it.
+    static func exists() -> Bool {
+        SecItemCopyMatching(baseQuery as CFDictionary, nil) == errSecSuccess
+    }
+
     static func delete() {
         SecItemDelete(baseQuery as CFDictionary)
     }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GeneralTab: View {
     @EnvironmentObject var state: AppState
+    @State private var showClearConfirm = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -19,6 +20,22 @@ struct GeneralTab: View {
             Toggle("Restore clipboard after rewriting", isOn: $state.restoreClipboard)
             Text("Puts your previous clipboard contents back after the rewrite is pasted.")
                 .font(.callout).foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("History").font(.title3).bold()
+            Toggle("Keep rewrite history", isOn: $state.keepHistory)
+            Text("Saves the before/after text of each rewrite so you can recover it later (menu → "
+                 + "History…). Kept on this Mac in plain text (Application Support); the newest 100 "
+                 + "are retained.")
+                .font(.callout).foregroundStyle(.secondary)
+            Button("Clear History…") { showClearConfirm = true }
+                .disabled(state.history.isEmpty)
+                .confirmationDialog("Delete all saved rewrite history?",
+                                    isPresented: $showClearConfirm, titleVisibility: .visible) {
+                    Button("Clear History", role: .destructive) { state.clearHistory() }
+                    Button("Cancel", role: .cancel) {}
+                }
 
             Divider()
 

@@ -38,3 +38,13 @@ extension AnthropicModel {
         return models.first?.id ?? ""
     }
 }
+
+extension Array where Element == AnthropicModel {
+    /// Finder-style, numeric-aware, case-insensitive sort by display name for the picker —
+    /// groups families (Fable, Haiku, Opus, Sonnet) and orders versions naturally (…4.6 before
+    /// …4.10). Presentation only; the stored order stays API-newest-first so
+    /// `preferredDefault(from:)` still selects the newest Sonnet.
+    public func sortedByDisplayName() -> [AnthropicModel] {
+        sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+}

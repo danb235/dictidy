@@ -43,6 +43,8 @@ struct MenuBarContent: View {
 
         Divider()
 
+        Button("History…") { openHistory() }
+
         Button("Settings…") { openSettings(.apiKey) }
             .keyboardShortcut(",", modifiers: .command)
 
@@ -61,5 +63,11 @@ struct MenuBarContent: View {
         state.settingsTab = tab
         NSApp.activate(ignoringOtherApps: true)
         openWindow(id: "settings")
+    }
+
+    private func openHistory() {
+        // Accessory (menu-bar) apps can open windows behind others — activate first so it fronts.
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "history")
     }
 }
