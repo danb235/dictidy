@@ -41,34 +41,40 @@ struct MenuBarContent: View {
             Divider()
         }
 
-        // Instructions — each shows its bound shortcut (or that none is set).
-        if state.instructions.isEmpty {
-            Text("No instructions yet")
-        } else {
-            ForEach(state.instructions) { instruction in
-                Button(menuTitle(for: instruction)) {
-                    Task { await state.runRewrite(instruction: instruction) }
+        // Rewrite actions — each instruction, showing its shortcut only when one is set.
+        Section("Rewrite selection") {
+            if state.instructions.isEmpty {
+                Text("No instructions yet")
+            } else {
+                ForEach(state.instructions) { instruction in
+                    Button(menuTitle(for: instruction)) {
+                        Task { await state.runRewrite(instruction: instruction) }
+                    }
+                    .disabled(state.isWorking)
                 }
-                .disabled(state.isWorking)
+            }
+        }
+
+        // Dictation actions — while ready; a quiet setup link for new users; nothing while
+        // mid-setup (the "To dictate" checklist above shows the fix).
+        Section("Dictate") {
+            if state.isRecording {
+                Button("Stop Dictation") { state.stopAndProcess() }
+            } else if dictationModelReady {
+                Button(dictateTitle) { state.toggleDictation(mode: .raw) }
+                    .disabled(state.isWorking)
+                Button(dictateAndCleanTitle) { state.toggleDictation(mode: .clean) }
+                    .disabled(state.isWorking)
+            } else if !state.dictationEngaged {
+                Button("Set up dictation…") { openSettings(.dictation) }
             }
         }
 
         Divider()
 
-        // Dictation. Actions when the model is ready; a quiet setup link for new users; nothing
-        // here while dictation is mid-setup (the "To dictate" checklist above shows the fix).
-        if state.isRecording {
-            Button("Stop Dictation") { state.stopAndProcess() }
-            Divider()
-        } else if dictationModelReady {
-            Button(dictateTitle) { state.toggleDictation(mode: .raw) }
-                .disabled(state.isWorking)
-            Button(dictateAndCleanTitle) { state.toggleDictation(mode: .clean) }
-                .disabled(state.isWorking)
-            Divider()
-        } else if !state.dictationEngaged {
-            Button("Set up dictation…") { openSettings(.dictation) }
-            Divider()
+        // Quiet "it's working" footer: which provider a rewrite will use right now.
+        if !state.needsSetup && !state.isWorking && !state.isRecording {
+            Text("Ready · \(state.activeProviderLabel)")
         }
 
         Button("History…") { openHistory() }
@@ -84,17 +90,17 @@ struct MenuBarContent: View {
         if let shortcut = state.shortcutDescription(for: instruction) {
             return "\(instruction.name)  \(shortcut)"
         }
-        return "\(instruction.name)  (no shortcut set)"
+        return instruction.name
     }
 
     private var dictateTitle: String {
         if let s = state.shortcutDescription(forName: ShortcutsRegistry.dictateName) { return "Dictate  \(s)" }
-        return "Dictate  (no shortcut set)"
+        return "Dictate"
     }
 
     private var dictateAndCleanTitle: String {
         if let s = state.shortcutDescription(forName: ShortcutsRegistry.dictateAndCleanName) { return "Dictate + Clean  \(s)" }
-        return "Dictate + Clean  (no shortcut set)"
+        return "Dictate + Clean"
     }
 
     private var dictationModelReady: Bool {

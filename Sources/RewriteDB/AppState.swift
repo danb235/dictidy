@@ -189,6 +189,16 @@ final class AppState: ObservableObject {
                              anthropicReady: anthropicReady, localReady: localModelReady)
     }
 
+    /// Short label for the provider a rewrite will use right now (respects primary + fallback),
+    /// for the menu "Ready · …" footer. Empty when nothing is set up.
+    var activeProviderLabel: String {
+        switch effectiveProviderOrder().first {
+        case .anthropic: return models.first(where: { $0.id == selectedModelID })?.displayName ?? "Claude"
+        case .local:     return "on-device model"
+        case nil:        return ""
+        }
+    }
+
     /// The user has engaged with dictation: a dictation shortcut is bound, OR the model download
     /// has started/finished. A user who never touches dictation stays false (so no nagging).
     var dictationEngaged: Bool {

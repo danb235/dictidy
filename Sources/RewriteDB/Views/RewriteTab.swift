@@ -15,7 +15,6 @@ struct RewriteTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Rewrite").font(.title3).bold()
                 Text("Choose how selected text is rewritten — the Claude API, an on-device model, or "
                      + "both with automatic fallback.")
                     .font(.callout).foregroundStyle(.secondary)

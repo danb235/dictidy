@@ -8,7 +8,6 @@ struct DictationTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Dictation").font(.title3).bold()
             Text("Speak, transcribe on-device with Whisper, and paste at your cursor. "
                  + "“Dictate + Clean” also runs the transcript through Claude.")
                 .font(.callout).foregroundStyle(.secondary)

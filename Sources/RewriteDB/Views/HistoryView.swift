@@ -86,7 +86,7 @@ struct HistoryView: View {
                         if entry.kind != .dictation {
                             InstructionBadge(name: entry.instructionName)
                         }
-                        Text(entry.date.formatted(date: .abbreviated, time: .standard))
+                        Text(entry.date.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if !entry.model.isEmpty {
@@ -133,11 +133,15 @@ struct HistoryView: View {
 
     private func row(_ entry: HistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(previewText(entry))
-                .lineLimit(2)
-                .font(.callout)
+            HStack(spacing: 7) {
+                // Kind as a compact leading glyph, so the badge no longer truncates the preview.
+                Image(systemName: entry.kind == .rewrite ? "wand.and.stars" : "mic")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(previewText(entry))
+                    .lineLimit(2)
+                    .font(.callout)
+            }
             HStack(spacing: 6) {
-                KindBadge(kind: entry.kind)
                 if entry.kind != .dictation {
                     InstructionBadge(name: entry.instructionName)
                 }
