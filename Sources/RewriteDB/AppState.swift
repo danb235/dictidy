@@ -1,11 +1,12 @@
 import AppKit
+import AudioToolbox
 import SwiftUI
 import KeyboardShortcuts
 import RewriteDBKit
 
 /// Which Settings tab to show — lets the menu deep-link to the relevant setup step.
 enum SettingsTab: Hashable {
-    case apiKey, model, instructions, general, dictation
+    case rewrite, instructions, dictation, general
 }
 
 /// Which dictation action a recording performs when it stops.
@@ -37,16 +38,21 @@ final class AppState: ObservableObject {
     /// but only while it's missing (see `startPermissionMonitorIfNeeded`), never once granted.
     @Published var accessibilityTrusted: Bool = AccessibilityPermissions.isTrusted
     /// Deep-link target when the menu opens the Settings window for a specific setup step.
-    @Published var settingsTab: SettingsTab = .apiKey
+    @Published var settingsTab: SettingsTab = .rewrite
 
     @Published var selectedModelID: String = "" {
         didSet { defaults.set(selectedModelID, forKey: Keys.selectedModel) }
     }
-    /// Which backend performs rewrites. Anthropic by default; `local` uses the on-device model.
+    /// The primary backend for rewrites. Anthropic by default; `local` uses the on-device model.
     @Published var rewriteProvider: RewriteProvider = .anthropic {
         didSet { defaults.set(rewriteProvider.rawValue, forKey: Keys.rewriteProvider) }
     }
-    /// Mirror of the local rewrite model download/readiness status, for the Model settings UI.
+    /// When true, a rewrite falls back to the *other* provider if the primary is unavailable
+    /// (offline, no key, rate-limited, server error, or model not loaded). Opt-in; default off.
+    @Published var fallbackEnabled: Bool = false {
+        didSet { defaults.set(fallbackEnabled, forKey: Keys.fallbackEnabled) }
+    }
+    /// Mirror of the local rewrite model download/readiness status, for the Rewrite settings UI.
     @Published var localModelStatus: LocalLLMModelStore.Status = .missing
     @Published var restoreClipboard: Bool = true {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
@@ -102,12 +108,18 @@ final class AppState: ObservableObject {
     /// pin GBs of memory for the rest of the session. Re-armed on each use.
     private var idleUnloadTask: Task<Void, Never>?
     private let idleUnloadDelay: UInt64 = 240_000_000_000   // 4 minutes
+    /// System-sound IDs for the dictation start/stop tones, loaded once. Played via AudioServices
+    /// (not NSSound) so playback doesn't depend on a retained object and isn't clipped by the audio
+    /// engine grabbing the mic.
+    private lazy var startSoundID: SystemSoundID = Self.loadSystemSound("Tink")
+    private lazy var stopSoundID: SystemSoundID = Self.loadSystemSound("Pop")
 
     private enum Keys {
         static let seeded = "didSeedDefaults"
         static let instructions = "instructions"
         static let selectedModel = "selectedModelID"
         static let rewriteProvider = "rewriteProvider"
+        static let fallbackEnabled = "fallbackEnabled"
         static let restoreClipboard = "restoreClipboard"
         static let models = "cachedModels"
         static let modelsFetched = "modelsLastFetched"
@@ -147,21 +159,27 @@ final class AppState: ObservableObject {
 
     // MARK: - Setup status
 
-    /// True when the app can't actually perform a rewrite yet — drives the menu-bar warning
-    /// state and the in-menu setup checklist. Provider-aware: the Anthropic path needs a key +
-    /// model; the local path needs the on-device model downloaded. Accessibility is needed by both.
+    /// True when the app can't actually perform a rewrite yet — drives the menu-bar warning state
+    /// and the in-menu setup checklist. Order-aware: if a configured fallback covers an unconfigured
+    /// primary, the app *can* rewrite, so no warning. Accessibility is needed regardless.
     var needsSetup: Bool {
-        if !accessibilityTrusted { return true }
-        switch rewriteProvider {
-        case .anthropic: return !hasAPIKey || selectedModelID.isEmpty
-        case .local:     return !localModelReady
-        }
+        !accessibilityTrusted || effectiveProviderOrder().isEmpty
     }
+
+    /// Whether the Anthropic path is usable (uses the cheap `hasAPIKey` existence flag — never reads
+    /// the Keychain secret, so this stays prompt-free even when evaluated on every menu open).
+    var anthropicReady: Bool { hasAPIKey && !selectedModelID.isEmpty }
 
     /// Whether the on-device rewrite model is downloaded and ready.
     var localModelReady: Bool {
         if case .ready = localModelStatus { return true }
         return false
+    }
+
+    /// Providers to try for one rewrite, in order (primary, then fallback if enabled + ready).
+    func effectiveProviderOrder() -> [RewriteProvider] {
+        rewriteProviderOrder(primary: rewriteProvider, fallbackEnabled: fallbackEnabled,
+                             anthropicReady: anthropicReady, localReady: localModelReady)
     }
 
     /// The user has engaged with dictation: a dictation shortcut is bound, OR the model download
@@ -215,22 +233,11 @@ final class AppState: ObservableObject {
     func runRewrite(instruction: Instruction) async {
         guard !isWorking, !isRecording else { return }
 
-        switch rewriteProvider {
-        case .anthropic:
-            guard apiKey()?.isEmpty == false else {
-                notify("No API key set. Open Settings → API Key.")
-                return
-            }
-            guard !selectedModelID.isEmpty else {
-                notify("No model selected. Open Settings → Model.")
-                return
-            }
-        case .local:
-            guard localModelReady else {
-                settingsTab = .model
-                notify("The local rewrite model isn't installed yet.\n\nOpen Settings → Model, choose “Local (on-device)”, and download it (about 2.5 GB), then try again.")
-                return
-            }
+        let order = effectiveProviderOrder()
+        guard !order.isEmpty else {
+            settingsTab = .rewrite
+            notify("Set up a rewrite provider first.\n\nOpen Settings → Rewrite and either add your Anthropic API key + pick a model, or download the local (on-device) model.")
+            return
         }
         guard AccessibilityPermissions.isTrusted else {
             accessibilityTrusted = false
@@ -250,40 +257,63 @@ final class AppState: ObservableObject {
             return
         }
 
-        await performRewrite(text: selection, instruction: instruction, before: selection, kind: .rewrite)
+        await performRewrite(order: order, text: selection, instruction: instruction, before: selection, kind: .rewrite)
         noSelectionFailureCount = 0
         lastNoSelectionFailure = nil
         isWorking = false
         statusMessage = nil
     }
 
-    /// Runs `text` through the active provider (Anthropic or the on-device model) with
-    /// `instruction`, records history (before/after), and pastes the result at the cursor. Caller
-    /// owns isWorking/statusMessage. Shared by the selection rewrite and Dictate + Clean.
-    private func performRewrite(text: String, instruction: Instruction, before: String, kind: HistoryKind) async {
-        do {
-            let result: String
-            let modelName: String
-            switch rewriteProvider {
-            case .anthropic:
-                guard let key = apiKey(), !key.isEmpty else {
-                    notify("No API key set. Open Settings → API Key.")
-                    return
-                }
-                result = try await AnthropicClient(apiKey: key).rewrite(
-                    text: text, systemPrompt: instruction.systemPrompt, model: selectedModelID)
-                modelName = models.first(where: { $0.id == selectedModelID })?.displayName ?? selectedModelID
-            case .local:
-                let engine = try await resolveLocalEngine()
-                result = try await engine.rewrite(text: text, systemPrompt: instruction.systemPrompt)
-                modelName = LocalLLMModelStore.modelDisplayName
+    /// Runs `text` through the providers in `order` (primary, then fallback), records history
+    /// (attributed to whichever provider succeeded) and pastes the result. On a provider failure it
+    /// advances to the next only if the error means the provider is *unavailable* (see
+    /// `shouldFallback`); a genuine request/content error surfaces instead. Notifies once, only if
+    /// the whole order fails. Caller owns isWorking. Shared by the selection rewrite and Dictate + Clean.
+    private func performRewrite(order: [RewriteProvider], text: String, instruction: Instruction,
+                                before: String, kind: HistoryKind) async {
+        var lastError: Error?
+        for (index, provider) in order.enumerated() {
+            if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
+            do {
+                let (result, modelName) = try await generate(with: provider, text: text,
+                                                             systemPrompt: instruction.systemPrompt)
+                recordHistory(before: before, after: result, instructionName: instruction.name,
+                              model: modelName, kind: kind)
+                await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
+                scheduleIdleUnload()
+                return
+            } catch {
+                lastError = error
+                if !shouldFallback(after: error) { break }   // request/content error → surface it
             }
-            recordHistory(before: before, after: result, instructionName: instruction.name, model: modelName, kind: kind)
-            await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
-            scheduleIdleUnload()
-        } catch {
-            notify(error.localizedDescription)
         }
+        notify(lastError?.localizedDescription ?? "The rewrite failed.")
+    }
+
+    /// Generates a rewrite with a single provider, returning the text and the model name to record.
+    private func generate(with provider: RewriteProvider, text: String, systemPrompt: String) async throws -> (String, String) {
+        switch provider {
+        case .anthropic:
+            guard let key = apiKey(), !key.isEmpty else { throw AnthropicError.missingAPIKey }
+            // Shorten the timeout when a local fallback can pick up, so a hung request fails over fast.
+            let timeout: TimeInterval = (fallbackEnabled && localModelReady) ? 25 : 60
+            let result = try await AnthropicClient(apiKey: key).rewrite(
+                text: text, systemPrompt: systemPrompt, model: selectedModelID, timeout: timeout)
+            let name = models.first(where: { $0.id == selectedModelID })?.displayName ?? selectedModelID
+            return (result, name)
+        case .local:
+            let engine = try await resolveLocalEngine()
+            return (try await engine.rewrite(text: text, systemPrompt: systemPrompt),
+                    LocalLLMModelStore.modelDisplayName)
+        }
+    }
+
+    /// Whether a provider error should advance to the next provider. Anthropic: only availability
+    /// failures (see `AnthropicError.isAvailabilityFailure`). Local-engine failures always fall back
+    /// (Claude is more capable). Anything else (unexpected) falls back too.
+    private func shouldFallback(after error: Error) -> Bool {
+        if let e = error as? AnthropicError { return e.isAvailabilityFailure }
+        return true
     }
 
     /// Builds (once) and returns the local LLM engine from the downloaded model. The ~2.5 GB load
@@ -364,6 +394,7 @@ final class AppState: ObservableObject {
     }
 
     private func beginRecording(mode: DictationMode, modelURL: URL) {
+        playTone(start: true)   // before the engine grabs the mic, so the tone isn't clipped
         do {
             try DictationService.shared.start()
         } catch {
@@ -372,7 +403,6 @@ final class AppState: ObservableObject {
         }
         dictationMode = mode
         isRecording = true
-        playTone(start: true)
         preloadEngine(modelURL: modelURL)   // load the model while the user talks
         startWatchdog()
     }
@@ -381,9 +411,9 @@ final class AppState: ObservableObject {
         guard isRecording else { return }
         isRecording = false
         stopWatchdog()
-        playTone(start: false)
         let mode = dictationMode ?? .clean
         let samples = DictationService.shared.stopAndCollect()
+        playTone(start: false)   // after the tap is removed, so the tone isn't captured into the audio
         guard !samples.isEmpty else { startErrorFlash(); return }   // no audio captured
 
         isWorking = true
@@ -398,11 +428,13 @@ final class AppState: ObservableObject {
                     await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
                     scheduleIdleUnload()
                 case .clean:
-                    if let instruction = dictationCleanupInstruction {
+                    let order = effectiveProviderOrder()
+                    if let instruction = dictationCleanupInstruction, !order.isEmpty {
                         statusMessage = "Cleaning…"
-                        await performRewrite(text: transcript, instruction: instruction,
+                        await performRewrite(order: order, text: transcript, instruction: instruction,
                                              before: transcript, kind: .dictationClean)
                     } else {
+                        // No cleanup instruction or no rewrite provider set up — paste the raw transcript.
                         recordRawDictation(transcript: transcript)
                         await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
                         scheduleIdleUnload()
@@ -444,7 +476,13 @@ final class AppState: ObservableObject {
 
     private func playTone(start: Bool) {
         guard playDictationTones else { return }
-        NSSound(named: start ? "Tink" : "Pop")?.play()
+        AudioServicesPlaySystemSound(start ? startSoundID : stopSoundID)
+    }
+
+    private static func loadSystemSound(_ name: String) -> SystemSoundID {
+        var id: SystemSoundID = 0
+        AudioServicesCreateSystemSoundID(URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff") as CFURL, &id)
+        return id
     }
 
     /// Advances `recordingFrame` on a timer so the menu-bar mic visibly pulses while listening.
@@ -639,6 +677,7 @@ final class AppState: ObservableObject {
         if let raw = defaults.string(forKey: Keys.rewriteProvider), let p = RewriteProvider(rawValue: raw) {
             rewriteProvider = p
         }
+        fallbackEnabled = defaults.object(forKey: Keys.fallbackEnabled) as? Bool ?? false
         restoreClipboard = defaults.object(forKey: Keys.restoreClipboard) as? Bool ?? true
         keepHistory = defaults.object(forKey: Keys.keepHistory) as? Bool ?? true
         history = HistoryStore.load()

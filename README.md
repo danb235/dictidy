@@ -27,11 +27,14 @@ off and new ones appear with no app update.
 ## Features
 
 - **Global hotkey rewrite** — works in any app (Mail, Slack, Notion, IDEs, browsers…).
-- **Local rewrite option (offline, no API key)** — don't want to pay for the API? Switch Settings →
-  Model to **Local (on-device)** and download a small model (**Qwen3-4B-Instruct**, Q4_K_M, ~2.5 GB)
-  that runs entirely on your Mac via [llama.cpp](https://github.com/ggml-org/llama.cpp). Keep both
-  configured and toggle between Claude and local anytime; the model loads on first use and unloads
-  when idle to free memory.
+- **Local rewrite option (offline, no API key)** — don't want to pay for the API? In Settings →
+  **Rewrite**, set the primary provider to **Local (on-device)** and download a small model
+  (**Qwen3-4B-Instruct**, Q4_K_M, ~2.5 GB) that runs entirely on your Mac via
+  [llama.cpp](https://github.com/ggml-org/llama.cpp). Keep both configured and toggle anytime; the
+  model loads on first use and unloads when idle to free memory.
+- **Automatic fallback** — make Claude your primary and enable **Fall back to the other provider**;
+  if Claude is unavailable (offline, rate-limited, or a server error) RewriteDB transparently rewrites
+  with the local model instead, so a rewrite never just fails when you're offline.
 - **On-device voice dictation** — press a hotkey, speak, and the transcription pastes at your cursor.
   Powered by local **Whisper** (`large-v3-turbo`) via [whisper.cpp](https://github.com/ggml-org/whisper.cpp) —
   audio never leaves your Mac. Three actions: **Dictate** (raw transcript), **Dictate + Clean**
@@ -85,15 +88,16 @@ if you have the full IDE installed.
 1. **Grant Accessibility access.** On first launch macOS prompts you — or click the menu-bar icon →
    **Grant Accessibility access…**, enable **RewriteDB**, then **quit and relaunch**. (Required to copy
    your selection and paste the result back.)
-2. **Add your API key.** Menu bar → **Settings… → API Key**, paste your key, **Save** (this also
-   fetches the model list). *(Skip this if you'll only use the local rewrite model — see below.)*
-3. **Pick a model.** Settings → **Model**. Use **Refresh Models** anytime to re-fetch the live list.
+2. **Add your API key and pick a model.** Menu bar → **Settings… → Rewrite**, paste your key, **Save**
+   (this also fetches the model list), then pick a model. *(Skip this if you'll only use the local
+   rewrite model — see below.)*
 
-The menu-bar icon becomes a speech bubble once all three are done.
+The menu-bar icon becomes a speech bubble once Accessibility + a usable provider are set.
 
-**Optional — rewrite offline with no API key** (Settings → **Model**): flip the provider to
+**Optional — rewrite offline with no API key** (Settings → **Rewrite**): set the primary provider to
 **Local (on-device)** and **Download model** (~2.5 GB, one time). Rewrites then run entirely on your
-Mac — no key, no network. Both providers can be set up at once; switch back to **Anthropic API** anytime.
+Mac — no key, no network. Both providers can be set up at once; switch the primary anytime, or enable
+**Fall back to the other provider** to use the local model automatically whenever Claude is unavailable.
 
 **Optional — set up dictation** (Settings → **Dictation**): (1) **Download** the Whisper model
 (~1.6 GB, on-device), (2) **Grant Microphone** access, (3) **set a hotkey** for *Dictate* and/or
@@ -144,7 +148,7 @@ rebuilds, so you grant access **once**.
 | API | Raw HTTPS via `URLSession` — `POST /v1/messages`, `GET /v1/models`, `anthropic-version: 2023-06-01` |
 | Local rewriting | Optional on-device **Qwen3-4B-Instruct** (Q4_K_M) via the prebuilt [llama.cpp](https://github.com/ggml-org/llama.cpp) XCFramework — same CLT-friendly binary-target approach as Whisper (embedded Metal, no `metal` toolchain, GPU-accelerated); loads on first use, unloads when idle |
 | API key storage | macOS Keychain (Security framework) |
-| Settings persistence | `UserDefaults` (instructions, rewrite provider, selected model, cached model list, dictation prefs) |
+| Settings persistence | `UserDefaults` (instructions, rewrite provider + fallback, selected model, cached model list, dictation prefs) |
 | Launch at login | `SMAppService.mainApp` |
 | Live permission status | Polls `AXIsProcessTrusted()` **only while access is missing**, then stops |
 | Speech-to-text | Local **Whisper** (`large-v3-turbo`) via the prebuilt [whisper.cpp](https://github.com/ggml-org/whisper.cpp) XCFramework — a SwiftPM binary target with a precompiled Metal library, so it builds under CLT (no `metal` toolchain) yet is GPU-accelerated at runtime |
@@ -174,7 +178,7 @@ Sources/
                        #   MicrophonePermissions, WhisperEngine, WhisperModelStore, DictationService,
                        #   LocalLLMEngine, LocalLLMModelStore   (llama.cpp rewrite provider)
     Views/             # MenuBarContent, HistoryView + Settings tabs
-                       #   (API Key / Model / Instructions / Dictation / General)
+                       #   (Rewrite / Instructions / Dictation / General)
   RewriteDBTests/      # Dependency-free test runner (`swift run RewriteDBTests`)
 Scripts/
   setup-signing.sh     # one-time: create local signing identity
@@ -208,9 +212,9 @@ It exits non-zero on any failure, and runs on every push via GitHub Actions ([CI
   then `tccutil reset Accessibility com.opensource.rewritedb` and grant access one final time — it
   persists from then on.
 - **"No text selected."** Ensure text is actually selected and the app supports ⌘C/⌘V.
-- **Local rewrite says the model isn't installed.** Settings → **Model** → **Local (on-device)** →
-  **Download model** (~2.5 GB, one time). While it downloads, the menu-bar ⚠️ + "To rewrite text"
-  checklist shows the step; switch back to **Anthropic API** anytime to rewrite with Claude instead.
+- **Local rewrite says the model isn't installed.** Settings → **Rewrite** → set primary to
+  **Local (on-device)** → **Download model** (~2.5 GB, one time). While it downloads, the menu-bar ⚠️
+  + "To rewrite text" checklist shows the step; switch the primary back to **Anthropic API** anytime.
 - **Dictation is greyed out / "Download speech model".** Open Settings → **Dictation** and download the
   Whisper model (~1.6 GB, one time). Dictation also needs **Microphone** access (Settings → Dictation →
   Grant…) — the menu-bar ⚠️ + "To dictate" checklist point you to whatever's missing.

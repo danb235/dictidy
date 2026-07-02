@@ -25,18 +25,8 @@ struct MenuBarContent: View {
                     }
                     Text("…enable RewriteDB, then quit and relaunch")
                 }
-                switch state.rewriteProvider {
-                case .anthropic:
-                    if !state.hasAPIKey {
-                        Button("Add your API key…") { openSettings(.apiKey) }
-                    }
-                    if state.selectedModelID.isEmpty {
-                        Button("Choose a model…") { openSettings(.model) }
-                    }
-                case .local:
-                    if !state.localModelReady {
-                        Button("Download rewrite model…") { openSettings(.model) }
-                    }
+                if state.effectiveProviderOrder().isEmpty {
+                    Button("Set up rewriting…") { openSettings(.rewrite) }
                 }
             }
             if state.dictationNeedsSetup {
@@ -83,7 +73,7 @@ struct MenuBarContent: View {
 
         Button("History…") { openHistory() }
 
-        Button("Settings…") { openSettings(.apiKey) }
+        Button("Settings…") { openSettings(.rewrite) }
             .keyboardShortcut(",", modifiers: .command)
 
         Button("Quit RewriteDB") { NSApplication.shared.terminate(nil) }

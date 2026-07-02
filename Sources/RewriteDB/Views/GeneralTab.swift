@@ -3,6 +3,7 @@ import SwiftUI
 struct GeneralTab: View {
     @EnvironmentObject var state: AppState
     @State private var showClearConfirm = false
+    @State private var micGranted = MicrophonePermissions.isGranted
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -40,19 +41,34 @@ struct GeneralTab: View {
             Divider()
 
             Text("Permissions").font(.title3).bold()
+
             HStack {
-                Button("Open Accessibility Settings") {
-                    AccessibilityPermissions.openSettings()
-                }
+                Button("Open Accessibility Settings") { AccessibilityPermissions.openSettings() }
                 Text(AccessibilityPermissions.isTrusted ? "Granted" : "Not granted")
                     .font(.callout)
                     .foregroundStyle(AccessibilityPermissions.isTrusted ? .green : .orange)
             }
-            Text("RewriteDB needs Accessibility access to copy your selection and paste the result back.")
+            Text("Accessibility — needed to copy your selection and paste the result back (rewriting and dictation).")
+                .font(.callout).foregroundStyle(.secondary)
+
+            HStack {
+                if MicrophonePermissions.status == .notDetermined {
+                    Button("Request Microphone Access") {
+                        MicrophonePermissions.request { micGranted = $0 }
+                    }
+                } else {
+                    Button("Open Microphone Settings") { MicrophonePermissions.openSettings() }
+                }
+                Text(micGranted ? "Granted" : "Not granted")
+                    .font(.callout)
+                    .foregroundStyle(micGranted ? .green : .orange)
+            }
+            Text("Microphone — needed only for dictation (speech-to-text).")
                 .font(.callout).foregroundStyle(.secondary)
 
             Spacer()
         }
         .padding()
+        .onAppear { micGranted = MicrophonePermissions.isGranted }
     }
 }

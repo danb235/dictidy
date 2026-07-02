@@ -140,6 +140,32 @@ check("decodes from a stored rawValue", RewriteProvider(rawValue: "anthropic") =
 check("unknown rawValue is nil (falls back to default at load)", RewriteProvider(rawValue: "bogus") == nil)
 check("providers have distinct display names", RewriteProvider.anthropic.displayName != RewriteProvider.local.displayName)
 
+print("rewriteProviderOrder")
+check("primary only when fallback off",
+      rewriteProviderOrder(primary: .anthropic, fallbackEnabled: false, anthropicReady: true, localReady: true) == [.anthropic])
+check("primary then fallback when both ready + enabled",
+      rewriteProviderOrder(primary: .anthropic, fallbackEnabled: true, anthropicReady: true, localReady: true) == [.anthropic, .local])
+check("falls through to ready fallback when primary not ready",
+      rewriteProviderOrder(primary: .anthropic, fallbackEnabled: true, anthropicReady: false, localReady: true) == [.local])
+check("empty when primary not ready and fallback off",
+      rewriteProviderOrder(primary: .anthropic, fallbackEnabled: false, anthropicReady: false, localReady: true) == [])
+check("empty when neither provider ready",
+      rewriteProviderOrder(primary: .local, fallbackEnabled: true, anthropicReady: false, localReady: false) == [])
+check("local primary then anthropic fallback",
+      rewriteProviderOrder(primary: .local, fallbackEnabled: true, anthropicReady: true, localReady: true) == [.local, .anthropic])
+check("no fallback appended when the other provider isn't ready",
+      rewriteProviderOrder(primary: .anthropic, fallbackEnabled: true, anthropicReady: true, localReady: false) == [.anthropic])
+
+print("AnthropicError.isAvailabilityFailure")
+check("network is an availability failure", AnthropicError.network("x").isAvailabilityFailure)
+check("missingAPIKey is an availability failure", AnthropicError.missingAPIKey.isAvailabilityFailure)
+check("429 is an availability failure", AnthropicError.http(429, "").isAvailabilityFailure)
+check("503 is an availability failure", AnthropicError.http(503, "").isAvailabilityFailure)
+check("401 is an availability failure", AnthropicError.http(401, "").isAvailabilityFailure)
+check("400 is NOT an availability failure", !AnthropicError.http(400, "").isAvailabilityFailure)
+check("emptyResponse is NOT an availability failure", !AnthropicError.emptyResponse.isAvailabilityFailure)
+check("decoding is NOT an availability failure", !AnthropicError.decoding("x").isAvailabilityFailure)
+
 print("AnthropicClient parsing")
 do {
     let models = try AnthropicClient.parseModels(data(#"""

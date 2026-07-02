@@ -5,12 +5,9 @@ struct SettingsView: View {
 
     var body: some View {
         TabView(selection: $state.settingsTab) {
-            APIKeyTab()
-                .tabItem { Label("API Key", systemImage: "key") }
-                .tag(SettingsTab.apiKey)
-            ModelTab()
-                .tabItem { Label("Model", systemImage: "cpu") }
-                .tag(SettingsTab.model)
+            RewriteTab()
+                .tabItem { Label("Rewrite", systemImage: "wand.and.stars") }
+                .tag(SettingsTab.rewrite)
             InstructionsTab()
                 .tabItem { Label("Instructions", systemImage: "text.badge.checkmark") }
                 .tag(SettingsTab.instructions)
@@ -22,5 +19,6 @@ struct SettingsView: View {
                 .tag(SettingsTab.general)
         }
         .padding()
+        .frame(minWidth: 540, minHeight: 480)
     }
 }

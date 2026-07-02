@@ -10,7 +10,7 @@ public enum AnthropicError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "No API key set. Open Settings → API Key and paste your Anthropic key."
+            return "No API key set. Open Settings → Rewrite and paste your Anthropic key."
         case .http(let code, let message):
             return "Anthropic API error (\(code)): \(message)"
         case .emptyResponse:
@@ -19,6 +19,21 @@ public enum AnthropicError: LocalizedError, Equatable {
             return "Network error: \(message)"
         case .decoding(let message):
             return "Couldn't read the response: \(message)"
+        }
+    }
+
+    /// Whether this failure means Claude is *unavailable* (vs. a request/content problem), so a
+    /// configured local fallback should be tried. Network drops, a missing key, and auth / rate-limit
+    /// / server errors are availability failures; a 400-class request error, an empty response, or a
+    /// decode failure are not (retrying local would waste latency and mask the real problem).
+    public var isAvailabilityFailure: Bool {
+        switch self {
+        case .network, .missingAPIKey:
+            return true
+        case .http(let code, _):
+            return code == 401 || code == 403 || code == 429 || (500...599).contains(code)
+        case .emptyResponse, .decoding:
+            return false
         }
     }
 }
@@ -36,14 +51,15 @@ public struct AnthropicClient {
         self.apiKey = apiKey
     }
 
-    private func makeRequest(_ path: String, method: String = "GET", body: Data? = nil) -> URLRequest {
+    private func makeRequest(_ path: String, method: String = "GET", body: Data? = nil,
+                             timeout: TimeInterval = 60) -> URLRequest {
         var request = URLRequest(url: URL(string: Self.baseURL + path)!)
         request.httpMethod = method
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(Self.apiVersion, forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = body
-        request.timeoutInterval = 60
+        request.timeoutInterval = timeout
         return request
     }
 
@@ -54,8 +70,10 @@ public struct AnthropicClient {
         return try Self.parseModels(data)
     }
 
-    /// Rewrite `text` using the given instruction (system prompt) and model.
-    public func rewrite(text: String, systemPrompt: String, model: String, maxTokens: Int = 8192) async throws -> String {
+    /// Rewrite `text` using the given instruction (system prompt) and model. `timeout` can be
+    /// shortened when a local fallback is available, so a hung request doesn't block for the full 60s.
+    public func rewrite(text: String, systemPrompt: String, model: String,
+                        maxTokens: Int = 8192, timeout: TimeInterval = 60) async throws -> String {
         let payload: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
@@ -63,7 +81,7 @@ public struct AnthropicClient {
             "messages": [["role": "user", "content": text]]
         ]
         let body = try JSONSerialization.data(withJSONObject: payload)
-        let (data, response) = try await send(makeRequest("/v1/messages", method: "POST", body: body))
+        let (data, response) = try await send(makeRequest("/v1/messages", method: "POST", body: body, timeout: timeout))
         try Self.validate(response, data)
         return try Self.parseRewriteText(data)
     }
