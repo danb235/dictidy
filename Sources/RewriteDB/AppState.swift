@@ -42,6 +42,12 @@ final class AppState: ObservableObject {
     @Published var selectedModelID: String = "" {
         didSet { defaults.set(selectedModelID, forKey: Keys.selectedModel) }
     }
+    /// Which backend performs rewrites. Anthropic by default; `local` uses the on-device model.
+    @Published var rewriteProvider: RewriteProvider = .anthropic {
+        didSet { defaults.set(rewriteProvider.rawValue, forKey: Keys.rewriteProvider) }
+    }
+    /// Mirror of the local rewrite model download/readiness status, for the Model settings UI.
+    @Published var localModelStatus: LocalLLMModelStore.Status = .missing
     @Published var restoreClipboard: Bool = true {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
     }
@@ -71,6 +77,7 @@ final class AppState: ObservableObject {
     }
 
     let modelStore = WhisperModelStore()
+    let localModelStore = LocalLLMModelStore()
     private let registry = ShortcutsRegistry()
     private let defaults = UserDefaults.standard
     /// In-memory copy of the API key, read from the Keychain lazily on first use and cached for
@@ -87,14 +94,20 @@ final class AppState: ObservableObject {
     private let failureEscalationThreshold = 3             // 3rd rapid failure → show the window
     private let historyLimit = 100                         // keep only the newest N rewrites
     private var whisperEngine: WhisperEngine?
+    private var localEngine: LocalLLMEngine?
     private var dictationMode: DictationMode?
     private var recordingTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
+    /// Releases resident models after a spell of inactivity so a one-off rewrite/dictation doesn't
+    /// pin GBs of memory for the rest of the session. Re-armed on each use.
+    private var idleUnloadTask: Task<Void, Never>?
+    private let idleUnloadDelay: UInt64 = 240_000_000_000   // 4 minutes
 
     private enum Keys {
         static let seeded = "didSeedDefaults"
         static let instructions = "instructions"
         static let selectedModel = "selectedModelID"
+        static let rewriteProvider = "rewriteProvider"
         static let restoreClipboard = "restoreClipboard"
         static let models = "cachedModels"
         static let modelsFetched = "modelsLastFetched"
@@ -121,6 +134,9 @@ final class AppState: ObservableObject {
         modelStore.onStatusChange = { [weak self] status in self?.modelStatus = status }
         modelStore.resolve()
 
+        localModelStore.onStatusChange = { [weak self] status in self?.localModelStatus = status }
+        localModelStore.resolve()
+
         // Refresh the live model list at launch only when we have nothing cached to show —
         // otherwise we'd read the Keychain (and trigger its auth prompt) on every launch. With a
         // cached list, models refresh on demand (Settings → Refresh) or when the key is saved.
@@ -132,9 +148,20 @@ final class AppState: ObservableObject {
     // MARK: - Setup status
 
     /// True when the app can't actually perform a rewrite yet — drives the menu-bar warning
-    /// state and the in-menu setup checklist.
+    /// state and the in-menu setup checklist. Provider-aware: the Anthropic path needs a key +
+    /// model; the local path needs the on-device model downloaded. Accessibility is needed by both.
     var needsSetup: Bool {
-        !hasAPIKey || selectedModelID.isEmpty || !accessibilityTrusted
+        if !accessibilityTrusted { return true }
+        switch rewriteProvider {
+        case .anthropic: return !hasAPIKey || selectedModelID.isEmpty
+        case .local:     return !localModelReady
+        }
+    }
+
+    /// Whether the on-device rewrite model is downloaded and ready.
+    var localModelReady: Bool {
+        if case .ready = localModelStatus { return true }
+        return false
     }
 
     /// The user has engaged with dictation: a dictation shortcut is bound, OR the model download
@@ -188,13 +215,22 @@ final class AppState: ObservableObject {
     func runRewrite(instruction: Instruction) async {
         guard !isWorking, !isRecording else { return }
 
-        guard apiKey()?.isEmpty == false else {
-            notify("No API key set. Open Settings → API Key.")
-            return
-        }
-        guard !selectedModelID.isEmpty else {
-            notify("No model selected. Open Settings → Model.")
-            return
+        switch rewriteProvider {
+        case .anthropic:
+            guard apiKey()?.isEmpty == false else {
+                notify("No API key set. Open Settings → API Key.")
+                return
+            }
+            guard !selectedModelID.isEmpty else {
+                notify("No model selected. Open Settings → Model.")
+                return
+            }
+        case .local:
+            guard localModelReady else {
+                settingsTab = .model
+                notify("The local rewrite model isn't installed yet.\n\nOpen Settings → Model, choose “Local (on-device)”, and download it (about 2.5 GB), then try again.")
+                return
+            }
         }
         guard AccessibilityPermissions.isTrusted else {
             accessibilityTrusted = false
@@ -214,29 +250,68 @@ final class AppState: ObservableObject {
             return
         }
 
-        await processThroughClaude(text: selection, instruction: instruction, before: selection, kind: .rewrite)
+        await performRewrite(text: selection, instruction: instruction, before: selection, kind: .rewrite)
         noSelectionFailureCount = 0
         lastNoSelectionFailure = nil
         isWorking = false
         statusMessage = nil
     }
 
-    /// Runs `text` through Claude with `instruction`, records history (before/after), and pastes
-    /// the result at the cursor. Caller owns isWorking/statusMessage. Shared by the selection
-    /// rewrite and Dictate + Clean.
-    private func processThroughClaude(text: String, instruction: Instruction, before: String, kind: HistoryKind) async {
-        guard let key = apiKey(), !key.isEmpty else {
-            notify("No API key set. Open Settings → API Key.")
-            return
-        }
+    /// Runs `text` through the active provider (Anthropic or the on-device model) with
+    /// `instruction`, records history (before/after), and pastes the result at the cursor. Caller
+    /// owns isWorking/statusMessage. Shared by the selection rewrite and Dictate + Clean.
+    private func performRewrite(text: String, instruction: Instruction, before: String, kind: HistoryKind) async {
         do {
-            let client = AnthropicClient(apiKey: key)
-            let result = try await client.rewrite(
-                text: text, systemPrompt: instruction.systemPrompt, model: selectedModelID)
-            recordHistory(before: before, after: result, instruction: instruction, kind: kind)
+            let result: String
+            let modelName: String
+            switch rewriteProvider {
+            case .anthropic:
+                guard let key = apiKey(), !key.isEmpty else {
+                    notify("No API key set. Open Settings → API Key.")
+                    return
+                }
+                result = try await AnthropicClient(apiKey: key).rewrite(
+                    text: text, systemPrompt: instruction.systemPrompt, model: selectedModelID)
+                modelName = models.first(where: { $0.id == selectedModelID })?.displayName ?? selectedModelID
+            case .local:
+                let engine = try await resolveLocalEngine()
+                result = try await engine.rewrite(text: text, systemPrompt: instruction.systemPrompt)
+                modelName = LocalLLMModelStore.modelDisplayName
+            }
+            recordHistory(before: before, after: result, instructionName: instruction.name, model: modelName, kind: kind)
             await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
+            scheduleIdleUnload()
         } catch {
             notify(error.localizedDescription)
+        }
+    }
+
+    /// Builds (once) and returns the local LLM engine from the downloaded model. The ~2.5 GB load
+    /// runs off the main actor; the engine is cached until idle-unload releases it.
+    private func resolveLocalEngine() async throws -> LocalLLMEngine {
+        if let engine = localEngine { return engine }
+        guard case .ready(let url) = localModelStatus else {
+            throw LocalLLMEngine.EngineError.modelLoadFailed("model not installed")
+        }
+        let engine = try await Task.detached(priority: .userInitiated) {
+            try LocalLLMEngine(modelURL: url)
+        }.value
+        localEngine = engine
+        return engine
+    }
+
+    /// Releases resident models (local LLM + Whisper) after `idleUnloadDelay` of no activity, so a
+    /// single rewrite/dictation doesn't keep GBs mapped for the rest of the session. Setting the
+    /// actors to nil runs their deinit (llama_free / whisper_free). Re-armed on each use.
+    private func scheduleIdleUnload() {
+        idleUnloadTask?.cancel()
+        idleUnloadTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.idleUnloadDelay)
+            guard !Task.isCancelled, !self.isWorking, !self.isRecording else { return }
+            self.localEngine = nil
+            self.whisperEngine = nil
+            self.idleUnloadTask = nil
         }
     }
 
@@ -321,14 +396,16 @@ final class AppState: ObservableObject {
                 case .raw:
                     recordRawDictation(transcript: transcript)
                     await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
+                    scheduleIdleUnload()
                 case .clean:
                     if let instruction = dictationCleanupInstruction {
                         statusMessage = "Cleaning…"
-                        await processThroughClaude(text: transcript, instruction: instruction,
-                                                   before: transcript, kind: .dictationClean)
+                        await performRewrite(text: transcript, instruction: instruction,
+                                             before: transcript, kind: .dictationClean)
                     } else {
                         recordRawDictation(transcript: transcript)
                         await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
+                        scheduleIdleUnload()
                     }
                 }
                 isWorking = false
@@ -488,10 +565,9 @@ final class AppState: ObservableObject {
     // MARK: - History
 
     /// Records a completed rewrite (newest first), capped to `historyLimit`, then persists.
-    private func recordHistory(before: String, after: String, instruction: Instruction, kind: HistoryKind) {
-        let modelName = models.first(where: { $0.id == selectedModelID })?.displayName ?? selectedModelID
-        record(HistoryEntry(kind: kind, instructionName: instruction.name,
-                            model: modelName, before: before, after: after))
+    private func recordHistory(before: String, after: String, instructionName: String, model: String, kind: HistoryKind) {
+        record(HistoryEntry(kind: kind, instructionName: instructionName,
+                            model: model, before: before, after: after))
     }
 
     /// Records a raw dictation — transcript only, no Claude model, no "before".
@@ -560,6 +636,9 @@ final class AppState: ObservableObject {
         }
 
         selectedModelID = defaults.string(forKey: Keys.selectedModel) ?? ""
+        if let raw = defaults.string(forKey: Keys.rewriteProvider), let p = RewriteProvider(rawValue: raw) {
+            rewriteProvider = p
+        }
         restoreClipboard = defaults.object(forKey: Keys.restoreClipboard) as? Bool ?? true
         keepHistory = defaults.object(forKey: Keys.keepHistory) as? Bool ?? true
         history = HistoryStore.load()

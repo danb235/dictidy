@@ -25,11 +25,18 @@ struct MenuBarContent: View {
                     }
                     Text("…enable RewriteDB, then quit and relaunch")
                 }
-                if !state.hasAPIKey {
-                    Button("Add your API key…") { openSettings(.apiKey) }
-                }
-                if state.selectedModelID.isEmpty {
-                    Button("Choose a model…") { openSettings(.model) }
+                switch state.rewriteProvider {
+                case .anthropic:
+                    if !state.hasAPIKey {
+                        Button("Add your API key…") { openSettings(.apiKey) }
+                    }
+                    if state.selectedModelID.isEmpty {
+                        Button("Choose a model…") { openSettings(.model) }
+                    }
+                case .local:
+                    if !state.localModelReady {
+                        Button("Download rewrite model…") { openSettings(.model) }
+                    }
                 }
             }
             if state.dictationNeedsSetup {

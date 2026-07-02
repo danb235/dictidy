@@ -126,6 +126,20 @@ do {
     check("raw dictation round-trips (.dictation, empty before)", false)
 }
 
+print("RewriteProvider")
+check("has anthropic and local cases", RewriteProvider.allCases.count == 2)
+check("rawValues are stable (persisted to UserDefaults)",
+      RewriteProvider.anthropic.rawValue == "anthropic" && RewriteProvider.local.rawValue == "local")
+do {
+    let decoded = try JSONDecoder().decode(RewriteProvider.self, from: JSONEncoder().encode(RewriteProvider.local))
+    check("Codable round-trip preserves case", decoded == .local)
+} catch {
+    check("Codable round-trip preserves case", false)
+}
+check("decodes from a stored rawValue", RewriteProvider(rawValue: "anthropic") == .anthropic)
+check("unknown rawValue is nil (falls back to default at load)", RewriteProvider(rawValue: "bogus") == nil)
+check("providers have distinct display names", RewriteProvider.anthropic.displayName != RewriteProvider.local.displayName)
+
 print("AnthropicClient parsing")
 do {
     let models = try AnthropicClient.parseModels(data(#"""
