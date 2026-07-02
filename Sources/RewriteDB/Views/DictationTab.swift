@@ -29,7 +29,7 @@ struct DictationTab: View {
                 HStack(spacing: 10) {
                     Button("Grant Microphone access…") { requestMic() }
                     Button("Open Settings") { MicrophonePermissions.openSettings() }
-                    Text("Not granted").font(.callout).foregroundStyle(.orange)
+                    StatusBadge(.actionNeeded, label: "Not granted")
                 }
             }
 
@@ -64,7 +64,7 @@ struct DictationTab: View {
     @ViewBuilder private var modelRow: some View {
         switch state.modelStatus {
         case .ready:
-            Label("Downloaded", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
+            StatusBadge(.ready, label: "Downloaded")
         case .missing:
             Button("Download model (~1.6 GB)") { state.modelStore.download() }
                 .buttonStyle(.borderedProminent)
@@ -85,9 +85,7 @@ struct DictationTab: View {
     private func stepHeader(_ title: String, done: Bool) -> some View {
         HStack(spacing: 8) {
             Text(title).font(.headline)
-            if done {
-                Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
-            }
+            if done { StatusBadge(.ready) }
         }
     }
 

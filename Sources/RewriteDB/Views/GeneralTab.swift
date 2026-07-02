@@ -44,12 +44,15 @@ struct GeneralTab: View {
 
             HStack {
                 Button("Open Accessibility Settings") { AccessibilityPermissions.openSettings() }
-                Text(AccessibilityPermissions.isTrusted ? "Granted" : "Not granted")
-                    .font(.callout)
-                    .foregroundStyle(AccessibilityPermissions.isTrusted ? .green : .orange)
+                if AccessibilityPermissions.isTrusted {
+                    StatusBadge(.ready, label: "Granted")
+                } else {
+                    StatusBadge(.actionNeeded, label: "Not granted")
+                }
             }
             Text("Accessibility — needed to copy your selection and paste the result back (rewriting and dictation).")
                 .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 if MicrophonePermissions.status == .notDetermined {
@@ -59,12 +62,15 @@ struct GeneralTab: View {
                 } else {
                     Button("Open Microphone Settings") { MicrophonePermissions.openSettings() }
                 }
-                Text(micGranted ? "Granted" : "Not granted")
-                    .font(.callout)
-                    .foregroundStyle(micGranted ? .green : .orange)
+                if micGranted {
+                    StatusBadge(.ready, label: "Granted")
+                } else {
+                    StatusBadge(.actionNeeded, label: "Not granted")
+                }
             }
             Text("Microphone — needed only for dictation (speech-to-text).")
                 .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
         }

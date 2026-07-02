@@ -7,12 +7,7 @@ import Foundation
 /// never fetches it.
 @MainActor
 final class LocalLLMModelStore: NSObject {
-    enum Status: Equatable {
-        case missing
-        case downloading(Double)      // 0…1
-        case ready(URL)
-        case failed(String)
-    }
+    typealias Status = ModelStatus
 
     /// Called on the main actor whenever `status` changes, so `AppState` can mirror it into a
     /// `@Published` property for SwiftUI.

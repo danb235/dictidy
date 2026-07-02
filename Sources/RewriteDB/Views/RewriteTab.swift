@@ -131,7 +131,7 @@ struct RewriteTab: View {
     @ViewBuilder private var localModelRow: some View {
         switch state.localModelStatus {
         case .ready:
-            Label("Downloaded", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
+            StatusBadge(.ready, label: "Downloaded")
         case .missing:
             Button("Download model (~2.5 GB)") { state.localModelStore.download() }
                 .buttonStyle(.borderedProminent)
@@ -154,10 +154,7 @@ struct RewriteTab: View {
     private func sectionHeader(_ title: String, ready: Bool) -> some View {
         HStack(spacing: 8) {
             Text(title).font(.headline)
-            if ready {
-                Label("Ready", systemImage: "checkmark.seal.fill")
-                    .font(.caption).foregroundStyle(.green)
-            }
+            if ready { StatusBadge(.ready) }
         }
     }
 }

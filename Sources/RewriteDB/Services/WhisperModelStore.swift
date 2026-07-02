@@ -5,12 +5,7 @@ import Foundation
 /// fresh install works for anyone. No model picker: one model, one location.
 @MainActor
 final class WhisperModelStore: NSObject {
-    enum Status: Equatable {
-        case missing
-        case downloading(Double)      // 0…1
-        case ready(URL)
-        case failed(String)
-    }
+    typealias Status = ModelStatus
 
     /// Called on the main actor whenever `status` changes, so `AppState` can mirror it into a
     /// `@Published` property for SwiftUI.

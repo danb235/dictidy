@@ -56,7 +56,7 @@ final class AppState: ObservableObject {
         didSet { defaults.set(fallbackEnabled, forKey: Keys.fallbackEnabled); updateSetupPulse() }
     }
     /// Mirror of the local rewrite model download/readiness status, for the Rewrite settings UI.
-    @Published var localModelStatus: LocalLLMModelStore.Status = .missing { didSet { updateSetupPulse() } }
+    @Published var localModelStatus: ModelStatus = .missing { didSet { updateSetupPulse() } }
     @Published var restoreClipboard: Bool = true {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
     }
@@ -77,7 +77,7 @@ final class AppState: ObservableObject {
     /// Frame counter driving the listening pulse (like `spinnerFrame` drives the working spinner).
     @Published var recordingFrame: Int = 0
     /// Mirror of the Whisper model download/readiness status, for the Dictation settings UI.
-    @Published var modelStatus: WhisperModelStore.Status = .missing { didSet { updateSetupPulse() } }
+    @Published var modelStatus: ModelStatus = .missing { didSet { updateSetupPulse() } }
     @Published var playDictationTones: Bool = true {
         didSet { defaults.set(playDictationTones, forKey: Keys.playDictationTones) }
     }
