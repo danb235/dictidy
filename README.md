@@ -10,16 +10,17 @@ hotkey → speak → the transcription (optionally cleaned up by Claude) is past
 Rewriting uses the Anthropic (Claude) API by default, or an optional **on-device model** (no API
 key, fully offline); speech-to-text always runs **100% on-device** with Whisper.
 
-RewriteDB is an open-source, Anthropic-only reimagining of the (now abandoned) **RewriteCmd** app.
-It fixes the bug that broke the original: **model IDs are no longer baked into the binary.** The
-model list is fetched live from Anthropic, so it stays current automatically — retired models drop
-off and new ones appear with no app update.
+RewriteDB is an open-source reimagining of the (now abandoned) **RewriteCmd** app. It fixes the bug
+that broke the original: when using the Claude API, **model IDs are no longer baked into the binary** —
+the model list is fetched live from Anthropic, so it stays current automatically (retired models drop
+off and new ones appear with no app update). It also goes further than the original with an optional
+on-device model and voice dictation.
 
 ```
-┌──────────────┐   ⇧⌘R    ┌───────────────┐   /v1/messages   ┌──────────┐
-│ Any macOS app │ ───────▶ │   RewriteDB    │ ───────────────▶ │  Claude  │
-│ (selected text)│ ◀─────── │ (menu-bar app) │ ◀─────────────── │   API    │
-└──────────────┘  paste    └───────────────┘   rewritten text  └──────────┘
+┌─────────────────┐   ⇧⌘R    ┌────────────────┐   rewrite    ┌────────────────────┐
+│  Any macOS app  │ ───────▶ │    RewriteDB    │ ───────────▶ │  Claude API        │
+│ (selected text) │ ◀─────── │ (menu-bar app)  │ ◀─────────── │  ·or· local model  │
+└─────────────────┘  paste   └────────────────┘   result      └────────────────────┘
 ```
 
 ---
@@ -111,13 +112,14 @@ dictation setup once you've started (a rewrite-only user is never nagged).
 **Rewrite selected text:**
 1. Select text in any app.
 2. Press **⇧⌘R** (Auto Clean), or pick an instruction from the menu-bar icon.
-3. The selection is replaced in place with Claude's rewrite (the icon spins while it works).
+3. The selection is replaced in place with the rewrite — from Claude or the local model, whichever
+   you've set as primary (the icon spins while it works).
 
 **Dictate by voice:**
 1. Press your **Dictate** or **Dictate + Clean** hotkey (Settings → Dictation). The menu-bar icon
    pulses while listening.
 2. Speak, then press the hotkey again to stop. The icon spins while it transcribes on-device (and,
-   for *Dictate + Clean*, runs the transcript through Claude).
+   for *Dictate + Clean*, runs the transcript through your rewrite provider — Claude or the local model).
 3. The text is pasted at your cursor.
 
 Add, edit, reorder, and assign shortcuts to instructions under **Settings → Instructions** — unlimited,
@@ -144,7 +146,7 @@ rebuilds, so you grant access **once**.
 |---|---|
 | App shell | SwiftUI `MenuBarExtra` (macOS 13+), `LSUIElement` (no Dock icon) |
 | Global hotkey | [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (pinned to 1.15.0 — see note) |
-| Capture / replace | Synthesize ⌘C to copy, call the API, write result to the clipboard, synthesize ⌘V (then restore your clipboard) |
+| Capture / replace | Synthesize ⌘C to copy, run the rewrite (Claude API or on-device model), write result to the clipboard, synthesize ⌘V (then restore your clipboard) |
 | API | Raw HTTPS via `URLSession` — `POST /v1/messages`, `GET /v1/models`, `anthropic-version: 2023-06-01` |
 | Local rewriting | Optional on-device **Qwen3-4B-Instruct** (Q4_K_M) via the prebuilt [llama.cpp](https://github.com/ggml-org/llama.cpp) XCFramework — same CLT-friendly binary-target approach as Whisper (embedded Metal, no `metal` toolchain, GPU-accelerated); loads on first use, unloads when idle |
 | API key storage | macOS Keychain (Security framework) |
