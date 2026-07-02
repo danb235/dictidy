@@ -11,28 +11,8 @@ struct RewriteDBApp: App {
             MenuBarContent()
                 .environmentObject(state)
         } label: {
-            if state.isRecording {
-                // Listening: the mic "breathes" (opacity pulse driven by recordingFrame) so you
-                // know it's live and can start talking. Stepped animation — macOS 13 safe.
-                Image(systemName: "mic.fill")
-                    .opacity(recordingPulse(state.recordingFrame))
-            } else if state.isWorking {
-                // Processing: stepped rotation re-renders each spinnerFrame while transcribing /
-                // rewriting, so you know you've stopped and it's working.
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .rotationEffect(.degrees(Double(state.spinnerFrame) * 30))
-            } else if state.showErrorFlash {
-                // Transient "operation not possible" signal after a no-selection trigger.
-                Image(systemName: "nosign")
-            } else if state.needsSetup || state.dictationNeedsSetup {
-                // Draws attention until setup is complete; the menu explains what's missing
-                // (rewrite setup always; dictation setup only once the user has engaged with it).
-                Image(systemName: "exclamationmark.triangle.fill")
-            } else {
-                // Idle: a speech-bubble-with-text — "produce polished text," voice or typed.
-                // Distinct from the recording mic and the processing spinner.
-                Image(systemName: "text.bubble")
-            }
+            MenuBarLabel()
+                .environmentObject(state)
         }
 
         Window("RewriteDB Settings", id: "settings") {
@@ -51,13 +31,35 @@ struct RewriteDBApp: App {
     }
 }
 
-/// Smooth 0.4↔1.0 "breathe" for the listening mic, driven by the recording frame counter.
-/// A triangle wave (no `symbolEffect`, which is macOS 14+), so it animates on the macOS 13 target.
-private func recordingPulse(_ frame: Int) -> Double {
-    let period = 16.0
-    let phase = Double(frame).truncatingRemainder(dividingBy: period) / period   // 0..<1
-    let triangle = 1.0 - abs(2.0 * phase - 1.0)                                   // 0→1→0
-    return 0.4 + 0.6 * triangle
+/// The menu-bar status glyph: the Equalizer `WaveformIcon` rendered to a **template** `NSImage` so
+/// AppKit tints it for light/dark menu bars and inverts it to white when the menu is open — which a
+/// raw SwiftUI label does not do. Animation comes from the frame counters `AppState` already ticks.
+struct MenuBarLabel: View {
+    @EnvironmentObject var state: AppState
+
+    var body: some View {
+        let icon = iconState()
+        Image(nsImage: Self.render(mode: icon.mode, frame: icon.frame))
+            .accessibilityLabel(icon.label)
+    }
+
+    private func iconState() -> (mode: WaveformIcon.Mode, frame: Int, label: String) {
+        if state.isRecording { return (.recording, state.recordingFrame, "Recording") }
+        if state.isWorking { return (.processing, state.spinnerFrame, "Working") }
+        if state.showErrorFlash { return (.error, 0, "No text selected") }
+        if state.needsSetup || state.dictationNeedsSetup { return (.setup, state.setupFrame, "Setup needed") }
+        return (.idle, 0, "RewriteDB")
+    }
+
+    /// Rasterize the SwiftUI icon to a template NSImage. A fresh image each frame guarantees the
+    /// menu-bar item repaints as the animation advances.
+    @MainActor private static func render(mode: WaveformIcon.Mode, frame: Int) -> NSImage {
+        let renderer = ImageRenderer(content: WaveformIcon(mode: mode, frame: frame).frame(width: 18, height: 18))
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+        let image = renderer.nsImage ?? NSImage()
+        image.isTemplate = true
+        return image
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

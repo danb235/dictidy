@@ -20,40 +20,43 @@ final class AppState: ObservableObject {
     @Published var instructions: [Instruction] = []
     @Published var models: [AnthropicModel] = []
     @Published var modelsLastFetched: Date?
-    @Published var hasAPIKey: Bool = false
+    @Published var hasAPIKey: Bool = false { didSet { updateSetupPulse() } }
     @Published var launchAtLogin: Bool = false
     @Published var isWorking: Bool = false {
         didSet {
             guard isWorking != oldValue else { return }
             if isWorking { cancelErrorFlash(); startSpinner() } else { stopSpinner() }
+            updateSetupPulse()
         }
     }
     @Published var statusMessage: String?
     /// Incrementing frame counter that drives the menu-bar spinner animation while working.
     @Published var spinnerFrame: Int = 0
+    /// Frame counter driving the "setup needed" attention pulse (mirrors spinnerFrame).
+    @Published var setupFrame: Int = 0
     /// When true, the menu-bar icon briefly shows the `nosign` glyph to signal a
     /// no-selection failure — a lightweight, non-modal alternative to the alert.
     @Published var showErrorFlash: Bool = false
     /// Live Accessibility-permission state. macOS posts no reliable change event, so we poll —
     /// but only while it's missing (see `startPermissionMonitorIfNeeded`), never once granted.
-    @Published var accessibilityTrusted: Bool = AccessibilityPermissions.isTrusted
+    @Published var accessibilityTrusted: Bool = AccessibilityPermissions.isTrusted { didSet { updateSetupPulse() } }
     /// Deep-link target when the menu opens the Settings window for a specific setup step.
     @Published var settingsTab: SettingsTab = .rewrite
 
     @Published var selectedModelID: String = "" {
-        didSet { defaults.set(selectedModelID, forKey: Keys.selectedModel) }
+        didSet { defaults.set(selectedModelID, forKey: Keys.selectedModel); updateSetupPulse() }
     }
     /// The primary backend for rewrites. Anthropic by default; `local` uses the on-device model.
     @Published var rewriteProvider: RewriteProvider = .anthropic {
-        didSet { defaults.set(rewriteProvider.rawValue, forKey: Keys.rewriteProvider) }
+        didSet { defaults.set(rewriteProvider.rawValue, forKey: Keys.rewriteProvider); updateSetupPulse() }
     }
     /// When true, a rewrite falls back to the *other* provider if the primary is unavailable
     /// (offline, no key, rate-limited, server error, or model not loaded). Opt-in; default off.
     @Published var fallbackEnabled: Bool = false {
-        didSet { defaults.set(fallbackEnabled, forKey: Keys.fallbackEnabled) }
+        didSet { defaults.set(fallbackEnabled, forKey: Keys.fallbackEnabled); updateSetupPulse() }
     }
     /// Mirror of the local rewrite model download/readiness status, for the Rewrite settings UI.
-    @Published var localModelStatus: LocalLLMModelStore.Status = .missing
+    @Published var localModelStatus: LocalLLMModelStore.Status = .missing { didSet { updateSetupPulse() } }
     @Published var restoreClipboard: Bool = true {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
     }
@@ -68,12 +71,13 @@ final class AppState: ObservableObject {
         didSet {
             guard isRecording != oldValue else { return }
             if isRecording { cancelErrorFlash(); startRecordingAnimation() } else { stopRecordingAnimation() }
+            updateSetupPulse()
         }
     }
     /// Frame counter driving the listening pulse (like `spinnerFrame` drives the working spinner).
     @Published var recordingFrame: Int = 0
     /// Mirror of the Whisper model download/readiness status, for the Dictation settings UI.
-    @Published var modelStatus: WhisperModelStore.Status = .missing
+    @Published var modelStatus: WhisperModelStore.Status = .missing { didSet { updateSetupPulse() } }
     @Published var playDictationTones: Bool = true {
         didSet { defaults.set(playDictationTones, forKey: Keys.playDictationTones) }
     }
@@ -91,6 +95,7 @@ final class AppState: ObservableObject {
     /// it at most once per launch instead of on every rewrite. Kept in sync on save/remove.
     private var cachedAPIKey: String?
     private var spinnerTask: Task<Void, Never>?
+    private var setupTask: Task<Void, Never>?
     private var permissionTask: Task<Void, Never>?
     private var flashTask: Task<Void, Never>?
     /// Rolling streak of consecutive no-selection failures; drives escalation to the modal.
@@ -155,6 +160,8 @@ final class AppState: ObservableObject {
         if hasAPIKey && models.isEmpty {
             Task { await refreshModels() }
         }
+
+        updateSetupPulse()   // start the attention pulse if the app launches needing setup
     }
 
     // MARK: - Setup status
@@ -724,6 +731,39 @@ final class AppState: ObservableObject {
     private func stopSpinner() {
         spinnerTask?.cancel()
         spinnerTask = nil
+    }
+
+    // MARK: - Setup pulse
+
+    /// True when the menu-bar icon should show the "setup needed" state (and isn't busy with the
+    /// recording/working animations, which take visual priority).
+    private var isInSetupState: Bool {
+        (needsSetup || dictationNeedsSetup) && !isWorking && !isRecording
+    }
+
+    /// Starts/stops the gentle "setup needed" pulse to match the current state. Called from the
+    /// didSets of the inputs that feed `needsSetup`/`dictationNeedsSetup`, so the timer runs only
+    /// while setup is genuinely pending and stops the instant it clears (preserving the app's
+    /// "nothing polls once set up" property).
+    private func updateSetupPulse() {
+        if isInSetupState { startSetupPulse() } else { stopSetupPulse() }
+    }
+
+    private func startSetupPulse() {
+        guard setupTask == nil else { return }   // already pulsing
+        setupFrame = 0
+        setupTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 90_000_000) // ~11 fps
+                guard let self, !Task.isCancelled else { break }
+                self.setupFrame &+= 1
+            }
+        }
+    }
+
+    private func stopSetupPulse() {
+        setupTask?.cancel()
+        setupTask = nil
     }
 
     // MARK: - Error flash
