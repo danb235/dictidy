@@ -46,8 +46,15 @@ on-device model and voice dictation.
 - **Live, self-updating model list** — fetched from `GET /v1/models`; pick any current model, no app update needed.
 - **Unlimited custom instructions** — each with its own name, system prompt, and global shortcut.
   Seeded with **Auto Clean** (⇧⌘R), **Formal**, **Friendly**, and **Translate to English**. No paywall.
-- **Guided setup** — the menu-bar icon shows status (⚠️ setup needed · 🎙 listening · ↻ working · ready),
-  and the menu lists exactly what's missing — for rewriting *and* dictation — with one-click fixes.
+- **First-run onboarding wizard** — a guided window takes a new user from install to working in about
+  a minute: choose Claude / on-device / both, then grant access, add a key, and download models with
+  every step **verified live** (Continue unlocks only once the check actually passes). Re-runnable from
+  the menu ("Run Setup Again…").
+- **Animated menu-bar icon** — a custom **Equalizer** waveform that reads at a glance: idle · listening
+  (bars bounce) · working (shimmer) · setup-needed (pulse) · error. A template image, so it adapts to
+  light/dark menu bars and inverts on highlight.
+- **Guided setup** — the menu lists exactly what's missing — for rewriting *and* dictation — with
+  one-click fixes; a consistent status badge shows readiness across every screen.
 - **Launch at login** toggle.
 - Native Swift + SwiftUI menu-bar app. No Dock icon. No telemetry.
 
@@ -81,19 +88,25 @@ git clone https://github.com/danb235/rewritedb.git && cd rewritedb
 ./Scripts/run.sh            # launches it (builds first if needed)
 ```
 
-A speech-bubble icon appears in your menu bar (no Dock icon). You can also `open Package.swift` in Xcode
-if you have the full IDE installed.
+An Equalizer-waveform icon appears in your menu bar (no Dock icon). You can also `open Package.swift`
+in Xcode if you have the full IDE installed.
 
 ### First-time setup (one time)
 
-1. **Grant Accessibility access.** On first launch macOS prompts you — or click the menu-bar icon →
-   **Grant Accessibility access…**, enable **RewriteDB**, then **quit and relaunch**. (Required to copy
-   your selection and paste the result back.)
+**The easiest path: the onboarding wizard opens automatically on first launch** and walks you through
+everything below — choosing a rewrite provider, granting Accessibility, adding a key and/or downloading
+models, and (optionally) setting up dictation — verifying each step as you go. You can reopen it anytime
+from the menu bar → **Run Setup Again…**.
+
+Prefer to do it manually? Equivalent steps:
+
+1. **Grant Accessibility access.** Click the menu-bar icon → **Grant Accessibility access…**, enable
+   **RewriteDB**, then **quit and relaunch**. (Required to copy your selection and paste the result back.)
 2. **Add your API key and pick a model.** Menu bar → **Settings… → Rewrite**, paste your key, **Save**
    (this also fetches the model list), then pick a model. *(Skip this if you'll only use the local
    rewrite model — see below.)*
 
-The menu-bar icon becomes a speech bubble once Accessibility + a usable provider are set.
+The menu-bar icon settles into its idle Equalizer state once Accessibility + a usable provider are set.
 
 **Optional — rewrite offline with no API key** (Settings → **Rewrite**): set the primary provider to
 **Local (on-device)** and **Download model** (~2.5 GB, one time). Rewrites then run entirely on your
@@ -173,14 +186,15 @@ Sources/
     AnthropicModel.swift       # model decoding + default-model selection
     AnthropicClient.swift      # Messages/Models API client + pure parsing helpers
     HistoryEntry.swift         # history model (kind + before/after) with legacy-safe decode
-    RewriteProvider.swift      # rewrite backend selector (Anthropic API | local on-device)
+    RewriteProvider.swift      # rewrite backend selector (Anthropic API | local on-device) + fallback order
+    WordDiff.swift             # pure word-level LCS diff for the History before/after view
   RewriteDB/           # The menu-bar app (UI, permissions, hotkeys, dictation, local LLM)
     RewriteDBApp.swift, AppState.swift
     Services/          # Keychain, RewriteService, LaunchAtLogin, Accessibility, ShortcutsRegistry, HistoryStore,
-                       #   MicrophonePermissions, WhisperEngine, WhisperModelStore, DictationService,
+                       #   MicrophonePermissions, ModelStatus, WhisperEngine, WhisperModelStore, DictationService,
                        #   LocalLLMEngine, LocalLLMModelStore   (llama.cpp rewrite provider)
-    Views/             # MenuBarContent, HistoryView + Settings tabs
-                       #   (Rewrite / Instructions / Dictation / General)
+    Views/             # MenuBarContent, HistoryView, WaveformIcon (animated menu-bar glyph),
+                       #   StatusBadge, OnboardingWizard, + Settings tabs (Rewrite / Instructions / Dictation / General)
   RewriteDBTests/      # Dependency-free test runner (`swift run RewriteDBTests`)
 Scripts/
   setup-signing.sh     # one-time: create local signing identity
