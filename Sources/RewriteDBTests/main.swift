@@ -166,6 +166,32 @@ check("400 is NOT an availability failure", !AnthropicError.http(400, "").isAvai
 check("emptyResponse is NOT an availability failure", !AnthropicError.emptyResponse.isAvailabilityFailure)
 check("decoding is NOT an availability failure", !AnthropicError.decoding("x").isAvailabilityFailure)
 
+print("WordDiff")
+check("identical strings are all equal",
+      WordDiff.diff(before: "the cat sat", after: "the cat sat").allSatisfy { $0.kind == .equal })
+check("pure insertion into empty", WordDiff.diff(before: "", after: "hi").map(\.kind) == [.inserted])
+check("pure deletion to empty", WordDiff.diff(before: "hi", after: "").map(\.kind) == [.deleted])
+check("empty → empty yields no tokens", WordDiff.diff(before: "", after: "").isEmpty)
+do {
+    let d = WordDiff.diff(before: "the quick brown fox", after: "the slow brown fox")
+    let rebuiltBefore = d.filter { $0.kind != .inserted }.map(\.text).joined()
+    let rebuiltAfter  = d.filter { $0.kind != .deleted  }.map(\.text).joined()
+    check("diff reconstructs the before text", rebuiltBefore == "the quick brown fox")
+    check("diff reconstructs the after text", rebuiltAfter == "the slow brown fox")
+    check("changed word is marked deleted+inserted",
+          d.contains { $0.kind == .deleted && $0.text.contains("quick") }
+              && d.contains { $0.kind == .inserted && $0.text.contains("slow") })
+    check("unchanged words stay equal",
+          d.contains { $0.kind == .equal && $0.text.contains("brown") })
+}
+do {
+    // Reconstruction invariant holds for an arbitrary edit.
+    let before = "teh  cat are fluffy", after = "The cat is fluffy and happy"
+    let d = WordDiff.diff(before: before, after: after)
+    check("reconstruction invariant (before)", d.filter { $0.kind != .inserted }.map(\.text).joined() == before)
+    check("reconstruction invariant (after)", d.filter { $0.kind != .deleted }.map(\.text).joined() == after)
+}
+
 print("AnthropicClient parsing")
 do {
     let models = try AnthropicClient.parseModels(data(#"""

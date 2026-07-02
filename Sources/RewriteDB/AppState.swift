@@ -333,6 +333,43 @@ final class AppState: ObservableObject {
         return true
     }
 
+    /// Re-run `text` (e.g. from History) through the active provider + instruction, record the
+    /// result (so it appears at the top of History), and copy it to the clipboard. Unlike
+    /// `performRewrite` it does not paste — it's invoked from the History window, where there's no
+    /// text cursor to paste into.
+    func rewriteAgain(_ text: String, instruction: Instruction) async {
+        guard !isWorking, !isRecording, !text.isEmpty else { return }
+        let order = effectiveProviderOrder()
+        guard !order.isEmpty else {
+            settingsTab = .rewrite
+            notify("Set up a rewrite provider first — Settings → Rewrite.")
+            return
+        }
+        isWorking = true
+        statusMessage = "Rewriting…"
+        var lastError: Error?
+        for (index, provider) in order.enumerated() {
+            if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
+            do {
+                let (result, modelName) = try await generate(with: provider, text: text,
+                                                             systemPrompt: instruction.systemPrompt)
+                recordHistory(before: text, after: result, instructionName: instruction.name,
+                              model: modelName, kind: .rewrite)
+                copyToClipboard(result)
+                scheduleIdleUnload()
+                isWorking = false
+                statusMessage = nil
+                return
+            } catch {
+                lastError = error
+                if !shouldFallback(after: error) { break }
+            }
+        }
+        isWorking = false
+        statusMessage = nil
+        notify(lastError?.localizedDescription ?? "The rewrite failed.")
+    }
+
     /// Builds (once) and returns the local LLM engine from the downloaded model. The ~2.5 GB load
     /// runs off the main actor; the engine is cached until idle-unload releases it.
     private func resolveLocalEngine() async throws -> LocalLLMEngine {

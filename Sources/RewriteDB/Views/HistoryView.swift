@@ -88,6 +88,8 @@ struct HistoryView: View {
                         }
                         Text(entry.date.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        rewriteAgainMenu(for: entry)
                     }
                     if !entry.model.isEmpty {
                         Text(entry.model).font(.caption).foregroundStyle(.tertiary)
@@ -100,13 +102,17 @@ struct HistoryView: View {
                                         shortcut: KeyboardShortcut("c", modifiers: .command))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
+                    // Word-level diff: removed words red on Before, added words green on After.
+                    let diff = WordDiff.diff(before: entry.before, after: entry.after)
                     HSplitView {
                         CopyableTextSection(title: "Before", text: entry.before, onCopy: state.copyToClipboard,
-                                            shortcut: KeyboardShortcut("c", modifiers: [.command, .shift]))
+                                            shortcut: KeyboardShortcut("c", modifiers: [.command, .shift]),
+                                            attributed: beforeAttributed(diff))
                             .frame(minWidth: 240)
                             .padding(.trailing, 10)
                         CopyableTextSection(title: "After", text: entry.after, onCopy: state.copyToClipboard,
-                                            shortcut: KeyboardShortcut("c", modifiers: .command))
+                                            shortcut: KeyboardShortcut("c", modifiers: .command),
+                                            attributed: afterAttributed(diff), prominentCopy: true)
                             .frame(minWidth: 240)
                             .padding(.leading, 10)
                     }
@@ -225,6 +231,48 @@ struct HistoryView: View {
         preview(entry.kind == .dictation ? entry.after : entry.before)
     }
 
+    // MARK: - Diff styling + rewrite-again
+
+    /// Before pane: unchanged text plain, removed words in red (git-diff style).
+    private func beforeAttributed(_ tokens: [DiffToken]) -> AttributedString {
+        var s = AttributedString()
+        for token in tokens where token.kind != .inserted {
+            var run = AttributedString(token.text)
+            if token.kind == .deleted { run.foregroundColor = .red }
+            s += run
+        }
+        return s
+    }
+
+    /// After pane: unchanged text plain, added words in green.
+    private func afterAttributed(_ tokens: [DiffToken]) -> AttributedString {
+        var s = AttributedString()
+        for token in tokens where token.kind != .deleted {
+            var run = AttributedString(token.text)
+            if token.kind == .inserted { run.foregroundColor = .green }
+            s += run
+        }
+        return s
+    }
+
+    /// Re-run an entry's source text through any instruction (using the active provider). The result
+    /// is recorded to History and copied to the clipboard.
+    @ViewBuilder private func rewriteAgainMenu(for entry: HistoryEntry) -> some View {
+        let source = entry.kind == .dictation ? entry.after : entry.before
+        Menu {
+            ForEach(state.instructions) { instruction in
+                Button(instruction.name) {
+                    Task { await state.rewriteAgain(source, instruction: instruction) }
+                }
+            }
+        } label: {
+            Label("Rewrite again", systemImage: "arrow.clockwise")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(state.isWorking || source.isEmpty)
+    }
+
     /// Compact, single-unit relative time ("1 min ago") — avoids the truncated two-unit default.
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -293,6 +341,10 @@ private struct CopyableTextSection: View {
     let text: String
     let onCopy: (String) -> Void
     var shortcut: KeyboardShortcut?
+    /// When set, renders this styled string (e.g. the word diff) instead of `text`; Copy still copies `text`.
+    var attributed: AttributedString?
+    /// Emphasize the Copy button (the "After" pane's primary action).
+    var prominentCopy = false
     @State private var copied = false
 
     var body: some View {
@@ -303,7 +355,7 @@ private struct CopyableTextSection: View {
                 copyButton
             }
             ScrollView {
-                Text(text.isEmpty ? "—" : text)
+                content
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
@@ -314,7 +366,15 @@ private struct CopyableTextSection: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    @ViewBuilder private var copyButton: some View {
+    @ViewBuilder private var content: some View {
+        if let attributed {
+            Text(attributed)
+        } else {
+            Text(text.isEmpty ? "—" : text)
+        }
+    }
+
+    private var copyButton: some View {
         let button = Button {
             onCopy(text)
             withAnimation { copied = true }
@@ -327,10 +387,9 @@ private struct CopyableTextSection: View {
         }
         .disabled(text.isEmpty)
 
-        if let shortcut {
-            button.keyboardShortcut(shortcut)
-        } else {
-            button
+        let styled: AnyView = prominentCopy ? AnyView(button.buttonStyle(.borderedProminent)) : AnyView(button)
+        return Group {
+            if let shortcut { styled.keyboardShortcut(shortcut) } else { styled }
         }
     }
 }
