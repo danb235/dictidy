@@ -82,6 +82,11 @@ struct MenuBarContent: View {
         Button("Settings…") { openSettings(.rewrite) }
             .keyboardShortcut(",", modifiers: .command)
 
+        Button("Run Setup Again…") {
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "onboarding")
+        }
+
         Button("Quit RewriteDB") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q", modifiers: .command)
     }

@@ -28,6 +28,13 @@ struct RewriteDBApp: App {
                 .frame(minWidth: 680, minHeight: 440)
         }
         .windowResizability(.contentSize)
+
+        Window("Welcome to RewriteDB", id: "onboarding") {
+            OnboardingView()
+                .environmentObject(state)
+                .frame(width: 480, height: 560)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -36,11 +43,25 @@ struct RewriteDBApp: App {
 /// raw SwiftUI label does not do. Animation comes from the frame counters `AppState` already ticks.
 struct MenuBarLabel: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let icon = iconState()
         Image(nsImage: Self.render(mode: icon.mode, frame: icon.frame))
             .accessibilityLabel(icon.label)
+            .onAppear(perform: maybeStartOnboarding)   // the label is present at launch
+    }
+
+    /// First launch: open the onboarding wizard for genuinely new users; silently mark an existing,
+    /// already-configured install as onboarded so upgraders never see it.
+    private func maybeStartOnboarding() {
+        guard !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") else { return }
+        if state.accessibilityTrusted && !state.effectiveProviderOrder().isEmpty {
+            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "onboarding")
     }
 
     private func iconState() -> (mode: WaveformIcon.Mode, frame: Int, label: String) {
@@ -68,7 +89,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // bundled .app; set it here too so behavior is correct even when run unbundled.
         NSApp.setActivationPolicy(.accessory)
 
-        if !AccessibilityPermissions.isTrusted {
+        // New users grant Accessibility inside the onboarding wizard, so don't double-prompt here;
+        // existing (already-onboarded) users still get the system prompt if they've revoked it.
+        if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding"), !AccessibilityPermissions.isTrusted {
             AccessibilityPermissions.prompt()
         }
     }
