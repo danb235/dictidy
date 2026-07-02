@@ -24,14 +24,14 @@ struct GeneralTab: View {
             Divider()
 
             Text("History").font(.title3).bold()
-            Toggle("Keep rewrite history", isOn: $state.keepHistory)
-            Text("Saves the before/after text of each rewrite so you can recover it later (menu → "
+            Toggle("Keep history", isOn: $state.keepHistory)
+            Text("Saves the text of each rewrite and dictation so you can recover it later (menu → "
                  + "History…). Kept on this Mac in plain text (Application Support); the newest 100 "
                  + "are retained.")
                 .font(.callout).foregroundStyle(.secondary)
             Button("Clear History…") { showClearConfirm = true }
                 .disabled(state.history.isEmpty)
-                .confirmationDialog("Delete all saved rewrite history?",
+                .confirmationDialog("Delete all saved history?",
                                     isPresented: $showClearConfirm, titleVisibility: .visible) {
                     Button("Clear History", role: .destructive) { state.clearHistory() }
                     Button("Cancel", role: .cancel) {}

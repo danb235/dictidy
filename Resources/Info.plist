@@ -17,9 +17,11 @@
     <key>CFBundleExecutable</key>
     <string>RewriteDB</string>
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>13.3</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>RewriteDB records your voice only while you dictate, transcribes it on your Mac, and never sends the audio anywhere.</string>
     <key>NSHumanReadableCopyright</key>
     <string>MIT License</string>
 </dict>

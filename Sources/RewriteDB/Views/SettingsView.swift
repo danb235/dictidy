@@ -14,6 +14,9 @@ struct SettingsView: View {
             InstructionsTab()
                 .tabItem { Label("Instructions", systemImage: "text.badge.checkmark") }
                 .tag(SettingsTab.instructions)
+            DictationTab()
+                .tabItem { Label("Dictation", systemImage: "mic") }
+                .tag(SettingsTab.dictation)
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsTab.general)

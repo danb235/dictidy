@@ -6,25 +6,40 @@ struct MenuBarContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if state.isWorking {
-            Text(state.statusMessage ?? "Rewriting…")
+        if state.isRecording {
+            Text("● Recording… — press the shortcut again to stop")
+            Divider()
+        } else if state.isWorking {
+            Text(state.statusMessage ?? "Working…")
             Divider()
         }
 
-        // Setup checklist: shows only the steps that are still missing, each a one-click fix.
-        if state.needsSetup {
-            Text("⚠︎ Finish setup to enable rewriting")
-            if !state.accessibilityTrusted {
-                Button("Grant Accessibility access…") {
-                    AccessibilityPermissions.openSettings()
+        // Setup checklist: only the missing steps, each a one-click fix. Rewrite steps always
+        // (core); dictation steps only once the user has engaged with dictation (no nagging).
+        if state.needsSetup || state.dictationNeedsSetup {
+            if state.needsSetup {
+                Text("⚠︎ To rewrite text")
+                if !state.accessibilityTrusted {
+                    Button("Grant Accessibility access…") {
+                        AccessibilityPermissions.openSettings()
+                    }
+                    Text("…enable RewriteDB, then quit and relaunch")
                 }
-                Text("…enable RewriteDB, then quit and relaunch")
+                if !state.hasAPIKey {
+                    Button("Add your API key…") { openSettings(.apiKey) }
+                }
+                if state.selectedModelID.isEmpty {
+                    Button("Choose a model…") { openSettings(.model) }
+                }
             }
-            if !state.hasAPIKey {
-                Button("Add your API key…") { openSettings(.apiKey) }
-            }
-            if state.selectedModelID.isEmpty {
-                Button("Choose a model…") { openSettings(.model) }
+            if state.dictationNeedsSetup {
+                Text("⚠︎ To dictate")
+                if !dictationModelReady {
+                    Button("Download speech model…") { openSettings(.dictation) }
+                }
+                if !MicrophonePermissions.isGranted {
+                    Button("Grant Microphone access…") { MicrophonePermissions.openSettings() }
+                }
             }
             Divider()
         }
@@ -43,6 +58,22 @@ struct MenuBarContent: View {
 
         Divider()
 
+        // Dictation. Actions when the model is ready; a quiet setup link for new users; nothing
+        // here while dictation is mid-setup (the "To dictate" checklist above shows the fix).
+        if state.isRecording {
+            Button("Stop Dictation") { state.stopAndProcess() }
+            Divider()
+        } else if dictationModelReady {
+            Button(dictateTitle) { state.toggleDictation(mode: .raw) }
+                .disabled(state.isWorking)
+            Button(dictateAndCleanTitle) { state.toggleDictation(mode: .clean) }
+                .disabled(state.isWorking)
+            Divider()
+        } else if !state.dictationEngaged {
+            Button("Set up dictation…") { openSettings(.dictation) }
+            Divider()
+        }
+
         Button("History…") { openHistory() }
 
         Button("Settings…") { openSettings(.apiKey) }
@@ -57,6 +88,21 @@ struct MenuBarContent: View {
             return "\(instruction.name)  \(shortcut)"
         }
         return "\(instruction.name)  (no shortcut set)"
+    }
+
+    private var dictateTitle: String {
+        if let s = state.shortcutDescription(forName: ShortcutsRegistry.dictateName) { return "Dictate  \(s)" }
+        return "Dictate  (no shortcut set)"
+    }
+
+    private var dictateAndCleanTitle: String {
+        if let s = state.shortcutDescription(forName: ShortcutsRegistry.dictateAndCleanName) { return "Dictate + Clean  \(s)" }
+        return "Dictate + Clean  (no shortcut set)"
+    }
+
+    private var dictationModelReady: Bool {
+        if case .ready = state.modelStatus { return true }
+        return false
     }
 
     private func openSettings(_ tab: SettingsTab) {

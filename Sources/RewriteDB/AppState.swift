@@ -5,8 +5,11 @@ import RewriteDBKit
 
 /// Which Settings tab to show — lets the menu deep-link to the relevant setup step.
 enum SettingsTab: Hashable {
-    case apiKey, model, instructions, general
+    case apiKey, model, instructions, general, dictation
 }
+
+/// Which dictation action a recording performs when it stops.
+enum DictationMode { case raw, clean }
 
 /// Central app state: instructions, live model list, selection, settings. Persists to
 /// UserDefaults (instructions + cached models) and the Keychain (API key), and wires the
@@ -48,7 +51,26 @@ final class AppState: ObservableObject {
     @Published var keepHistory: Bool = true {
         didSet { defaults.set(keepHistory, forKey: Keys.keepHistory) }
     }
+    /// Dictation recording state; drives the menu-bar "listening" animation.
+    @Published var isRecording: Bool = false {
+        didSet {
+            guard isRecording != oldValue else { return }
+            if isRecording { cancelErrorFlash(); startRecordingAnimation() } else { stopRecordingAnimation() }
+        }
+    }
+    /// Frame counter driving the listening pulse (like `spinnerFrame` drives the working spinner).
+    @Published var recordingFrame: Int = 0
+    /// Mirror of the Whisper model download/readiness status, for the Dictation settings UI.
+    @Published var modelStatus: WhisperModelStore.Status = .missing
+    @Published var playDictationTones: Bool = true {
+        didSet { defaults.set(playDictationTones, forKey: Keys.playDictationTones) }
+    }
+    /// Instruction used by "Dictate + Clean" (default: the Auto Clean instruction).
+    @Published var dictationCleanupInstructionID: UUID? {
+        didSet { defaults.set(dictationCleanupInstructionID?.uuidString, forKey: Keys.dictationCleanupInstruction) }
+    }
 
+    let modelStore = WhisperModelStore()
     private let registry = ShortcutsRegistry()
     private let defaults = UserDefaults.standard
     /// In-memory copy of the API key, read from the Keychain lazily on first use and cached for
@@ -64,6 +86,10 @@ final class AppState: ObservableObject {
     private let failureWindow: TimeInterval = 8            // rolling gap that keeps a streak alive
     private let failureEscalationThreshold = 3             // 3rd rapid failure → show the window
     private let historyLimit = 100                         // keep only the newest N rewrites
+    private var whisperEngine: WhisperEngine?
+    private var dictationMode: DictationMode?
+    private var recordingTask: Task<Void, Never>?
+    private var watchdogTask: Task<Void, Never>?
 
     private enum Keys {
         static let seeded = "didSeedDefaults"
@@ -73,6 +99,8 @@ final class AppState: ObservableObject {
         static let models = "cachedModels"
         static let modelsFetched = "modelsLastFetched"
         static let keepHistory = "keepHistory"
+        static let playDictationTones = "playDictationTones"
+        static let dictationCleanupInstruction = "dictationCleanupInstruction"
     }
 
     init() {
@@ -85,7 +113,13 @@ final class AppState: ObservableObject {
             Task { await self.runRewrite(instruction: instruction) }
         }
         registry.sync(instructions)
+        registry.onDictate = { [weak self] in self?.toggleDictation(mode: .raw) }
+        registry.onDictateAndClean = { [weak self] in self?.toggleDictation(mode: .clean) }
+        registry.registerStandalone()
         startPermissionMonitorIfNeeded()
+
+        modelStore.onStatusChange = { [weak self] status in self?.modelStatus = status }
+        modelStore.resolve()
 
         // Refresh the live model list at launch only when we have nothing cached to show —
         // otherwise we'd read the Keychain (and trigger its auth prompt) on every launch. With a
@@ -103,9 +137,32 @@ final class AppState: ObservableObject {
         !hasAPIKey || selectedModelID.isEmpty || !accessibilityTrusted
     }
 
+    /// The user has engaged with dictation: a dictation shortcut is bound, OR the model download
+    /// has started/finished. A user who never touches dictation stays false (so no nagging).
+    var dictationEngaged: Bool {
+        let hasShortcut = shortcutDescription(forName: ShortcutsRegistry.dictateName) != nil
+            || shortcutDescription(forName: ShortcutsRegistry.dictateAndCleanName) != nil
+        switch modelStatus {
+        case .downloading, .ready: return true
+        case .missing, .failed:    return hasShortcut
+        }
+    }
+
+    /// Dictation can't run yet — but only worth flagging once the user has engaged with it.
+    var dictationNeedsSetup: Bool {
+        guard dictationEngaged else { return false }
+        let modelReady = { if case .ready = modelStatus { return true }; return false }()
+        return !modelReady || !MicrophonePermissions.isGranted
+    }
+
     /// Human-readable shortcut for an instruction (e.g. "⇧⌘R"), or nil if none is bound.
     func shortcutDescription(for instruction: Instruction) -> String? {
         KeyboardShortcuts.getShortcut(for: KeyboardShortcuts.Name(instruction.shortcutKey))?.description
+    }
+
+    /// Human-readable shortcut for a standalone shortcut name (dictate / dictate-and-clean).
+    func shortcutDescription(forName name: String) -> String? {
+        KeyboardShortcuts.getShortcut(for: KeyboardShortcuts.Name(name))?.description
     }
 
     /// Polls Accessibility trust ONLY while it's missing, so the warning clears live when the
@@ -129,9 +186,9 @@ final class AppState: ObservableObject {
     // MARK: - Rewrite flow
 
     func runRewrite(instruction: Instruction) async {
-        guard !isWorking else { return }
+        guard !isWorking, !isRecording else { return }
 
-        guard let key = apiKey(), !key.isEmpty else {
+        guard apiKey()?.isEmpty == false else {
             notify("No API key set. Open Settings → API Key.")
             return
         }
@@ -157,25 +214,193 @@ final class AppState: ObservableObject {
             return
         }
 
+        await processThroughClaude(text: selection, instruction: instruction, before: selection, kind: .rewrite)
+        noSelectionFailureCount = 0
+        lastNoSelectionFailure = nil
+        isWorking = false
+        statusMessage = nil
+    }
+
+    /// Runs `text` through Claude with `instruction`, records history (before/after), and pastes
+    /// the result at the cursor. Caller owns isWorking/statusMessage. Shared by the selection
+    /// rewrite and Dictate + Clean.
+    private func processThroughClaude(text: String, instruction: Instruction, before: String, kind: HistoryKind) async {
+        guard let key = apiKey(), !key.isEmpty else {
+            notify("No API key set. Open Settings → API Key.")
+            return
+        }
         do {
             let client = AnthropicClient(apiKey: key)
             let result = try await client.rewrite(
-                text: selection,
-                systemPrompt: instruction.systemPrompt,
-                model: selectedModelID
-            )
-            // Record before pasting, so the entry survives even if the paste is later lost.
-            recordHistory(before: selection, after: result, instruction: instruction)
+                text: text, systemPrompt: instruction.systemPrompt, model: selectedModelID)
+            recordHistory(before: before, after: result, instruction: instruction, kind: kind)
             await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
-            isWorking = false
-            statusMessage = nil
-            noSelectionFailureCount = 0
-            lastNoSelectionFailure = nil
         } catch {
-            isWorking = false
-            statusMessage = nil
             notify(error.localizedDescription)
         }
+    }
+
+    // MARK: - Dictation
+
+    /// Instruction that "Dictate + Clean" runs the transcript through (default: Auto Clean).
+    var dictationCleanupInstruction: Instruction? {
+        if let id = dictationCleanupInstructionID, let match = instructions.first(where: { $0.id == id }) {
+            return match
+        }
+        return instructions.first(where: { $0.name == "Auto Clean" }) ?? instructions.first
+    }
+
+    /// Tap-to-toggle: start recording if idle, else stop and process using the mode that started it.
+    func toggleDictation(mode: DictationMode) {
+        if isRecording { stopAndProcess() } else { startDictation(mode: mode) }
+    }
+
+    func startDictation(mode: DictationMode) {
+        guard !isWorking, !isRecording else { return }
+        guard AccessibilityPermissions.isTrusted else {
+            accessibilityTrusted = false
+            startPermissionMonitorIfNeeded()
+            notify("RewriteDB needs Accessibility access to paste dictated text.\n\nEnable RewriteDB in System Settings → Privacy & Security → Accessibility, then quit and relaunch RewriteDB.")
+            AccessibilityPermissions.prompt()
+            return
+        }
+        guard case .ready(let modelURL) = modelStatus else {
+            settingsTab = .dictation
+            notify("The dictation speech model isn't installed yet.\n\nOpen Settings → Dictation and download it (about 1.6 GB), then try again.")
+            return
+        }
+        switch MicrophonePermissions.status {
+        case .authorized:
+            beginRecording(mode: mode, modelURL: modelURL)
+        case .notDetermined:
+            MicrophonePermissions.request { [weak self] granted in
+                guard let self else { return }
+                if granted {
+                    self.beginRecording(mode: mode, modelURL: modelURL)
+                } else {
+                    self.notify("Microphone access is needed to dictate. Enable it in System Settings → Privacy & Security → Microphone.")
+                }
+            }
+        default:
+            settingsTab = .dictation
+            notify("Microphone access is off.\n\nEnable RewriteDB in System Settings → Privacy & Security → Microphone, then try again.")
+            MicrophonePermissions.openSettings()
+        }
+    }
+
+    private func beginRecording(mode: DictationMode, modelURL: URL) {
+        do {
+            try DictationService.shared.start()
+        } catch {
+            notify("Couldn't start recording: \(error.localizedDescription)")
+            return
+        }
+        dictationMode = mode
+        isRecording = true
+        playTone(start: true)
+        preloadEngine(modelURL: modelURL)   // load the model while the user talks
+        startWatchdog()
+    }
+
+    func stopAndProcess() {
+        guard isRecording else { return }
+        isRecording = false
+        stopWatchdog()
+        playTone(start: false)
+        let mode = dictationMode ?? .clean
+        let samples = DictationService.shared.stopAndCollect()
+        guard !samples.isEmpty else { startErrorFlash(); return }   // no audio captured
+
+        isWorking = true
+        statusMessage = "Transcribing…"
+        Task {
+            do {
+                let engine = try await resolveEngine()
+                let transcript = try await engine.transcribe(samples)
+                switch mode {
+                case .raw:
+                    recordRawDictation(transcript: transcript)
+                    await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
+                case .clean:
+                    if let instruction = dictationCleanupInstruction {
+                        statusMessage = "Cleaning…"
+                        await processThroughClaude(text: transcript, instruction: instruction,
+                                                   before: transcript, kind: .dictationClean)
+                    } else {
+                        recordRawDictation(transcript: transcript)
+                        await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
+                    }
+                }
+                isWorking = false
+                statusMessage = nil
+            } catch WhisperEngine.EngineError.emptyTranscription {
+                isWorking = false
+                statusMessage = nil
+                startErrorFlash()   // silence / no speech — quiet feedback, no modal
+            } catch {
+                isWorking = false
+                statusMessage = nil
+                notify(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Builds (once) and returns the Whisper engine from the resolved model. The ~1.6 GB load
+    /// runs off the main actor; the engine is cached for the process lifetime.
+    private func resolveEngine() async throws -> WhisperEngine {
+        if let engine = whisperEngine { return engine }
+        guard case .ready(let url) = modelStatus else {
+            throw WhisperEngine.EngineError.modelLoadFailed("model not installed")
+        }
+        let engine = try await Task.detached(priority: .userInitiated) {
+            try WhisperEngine(modelURL: url)
+        }.value
+        whisperEngine = engine
+        return engine
+    }
+
+    /// Preload the engine at record start so the model load overlaps with the user speaking.
+    private func preloadEngine(modelURL: URL) {
+        guard whisperEngine == nil else { return }
+        Task { [weak self] in _ = try? await self?.resolveEngine() }
+    }
+
+    private func playTone(start: Bool) {
+        guard playDictationTones else { return }
+        NSSound(named: start ? "Tink" : "Pop")?.play()
+    }
+
+    /// Advances `recordingFrame` on a timer so the menu-bar mic visibly pulses while listening.
+    private func startRecordingAnimation() {
+        recordingTask?.cancel()
+        recordingFrame = 0
+        recordingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 90_000_000) // ~11 fps
+                guard let self, !Task.isCancelled else { break }
+                self.recordingFrame &+= 1
+            }
+        }
+    }
+
+    private func stopRecordingAnimation() {
+        recordingTask?.cancel()
+        recordingTask = nil
+    }
+
+    /// Auto-stops a runaway recording after 5 minutes (bounds memory; 5 min ≈ 18 MB of samples).
+    private func startWatchdog() {
+        watchdogTask?.cancel()
+        watchdogTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 min
+            guard let self, !Task.isCancelled, self.isRecording else { return }
+            self.stopAndProcess()
+        }
+    }
+
+    private func stopWatchdog() {
+        watchdogTask?.cancel()
+        watchdogTask = nil
     }
 
     // MARK: - API key
@@ -263,10 +488,21 @@ final class AppState: ObservableObject {
     // MARK: - History
 
     /// Records a completed rewrite (newest first), capped to `historyLimit`, then persists.
-    private func recordHistory(before: String, after: String, instruction: Instruction) {
-        guard keepHistory else { return }
+    private func recordHistory(before: String, after: String, instruction: Instruction, kind: HistoryKind) {
         let modelName = models.first(where: { $0.id == selectedModelID })?.displayName ?? selectedModelID
-        let entry = HistoryEntry(instructionName: instruction.name, model: modelName, before: before, after: after)
+        record(HistoryEntry(kind: kind, instructionName: instruction.name,
+                            model: modelName, before: before, after: after))
+    }
+
+    /// Records a raw dictation — transcript only, no Claude model, no "before".
+    private func recordRawDictation(transcript: String) {
+        record(HistoryEntry(kind: .dictation, instructionName: "Dictation",
+                            model: "", before: "", after: transcript))
+    }
+
+    /// Shared tail: honor `keepHistory`, prepend newest-first (capped), persist.
+    private func record(_ entry: HistoryEntry) {
+        guard keepHistory else { return }
         history = history.prepending(entry, cappedTo: historyLimit)
         persistHistory()
     }
@@ -327,6 +563,10 @@ final class AppState: ObservableObject {
         restoreClipboard = defaults.object(forKey: Keys.restoreClipboard) as? Bool ?? true
         keepHistory = defaults.object(forKey: Keys.keepHistory) as? Bool ?? true
         history = HistoryStore.load()
+        playDictationTones = defaults.object(forKey: Keys.playDictationTones) as? Bool ?? true
+        if let idString = defaults.string(forKey: Keys.dictationCleanupInstruction) {
+            dictationCleanupInstructionID = UUID(uuidString: idString)
+        }
 
         if let data = defaults.data(forKey: Keys.models),
            let list = try? JSONDecoder().decode([AnthropicModel].self, from: data) {

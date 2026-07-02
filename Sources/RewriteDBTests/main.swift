@@ -105,6 +105,26 @@ check("history keeps all entries under the cap",
       ([] as [HistoryEntry])
         .prepending(HistoryEntry(instructionName: "x", model: "m", before: "b", after: "a"), cappedTo: 100)
         .count == 1)
+do {
+    // Entries written before `kind` existed must still decode — defaulting to .rewrite.
+    let legacy = #"{"id":"11111111-1111-1111-1111-111111111111","date":"2023-11-14T22:13:20Z","instructionName":"Auto Clean","model":"Claude Sonnet 5","before":"teh cat","after":"the cat"}"#
+    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(HistoryEntry.self, from: data(legacy))
+    check("legacy history entry (no kind) decodes as .rewrite", decoded.kind == .rewrite)
+} catch {
+    check("legacy history entry (no kind) decodes as .rewrite", false)
+}
+do {
+    let entry = HistoryEntry(date: Date(timeIntervalSince1970: 1_700_000_000), kind: .dictation,
+                             instructionName: "Dictation", model: "", before: "", after: "hello there")
+    let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(HistoryEntry.self, from: encoder.encode(entry))
+    check("raw dictation round-trips (.dictation, empty before)",
+          decoded == entry && decoded.kind == .dictation && decoded.before.isEmpty)
+} catch {
+    check("raw dictation round-trips (.dictation, empty before)", false)
+}
 
 print("AnthropicClient parsing")
 do {

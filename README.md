@@ -1,11 +1,13 @@
 # RewriteDB
 
 [![CI](https://github.com/danb235/rewritedb/actions/workflows/ci.yml/badge.svg)](https://github.com/danb235/rewritedb/actions/workflows/ci.yml)
-[![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-macOS%2013.3%2B-blue)](#requirements)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Rewrite selected text **anywhere on your Mac** with one keyboard shortcut, using the Anthropic
-(Claude) API. Select text → press **⇧⌘R** → it's rewritten and pasted back in place.
+Rewrite selected text — or **dictate by voice** — **anywhere on your Mac** with a keyboard shortcut.
+Select text → press **⇧⌘R** → Claude rewrites it and pastes it back in place. Or hit your dictation
+hotkey → speak → the transcription (optionally cleaned up by Claude) is pasted at your cursor.
+Rewriting uses the Anthropic (Claude) API; speech-to-text runs **100% on-device** with Whisper.
 
 RewriteDB is an open-source, Anthropic-only reimagining of the (now abandoned) **RewriteCmd** app.
 It fixes the bug that broke the original: **model IDs are no longer baked into the binary.** The
@@ -24,12 +26,18 @@ off and new ones appear with no app update.
 ## Features
 
 - **Global hotkey rewrite** — works in any app (Mail, Slack, Notion, IDEs, browsers…).
+- **On-device voice dictation** — press a hotkey, speak, and the transcription pastes at your cursor.
+  Powered by local **Whisper** (`large-v3-turbo`) via [whisper.cpp](https://github.com/ggml-org/whisper.cpp) —
+  audio never leaves your Mac. Three actions: **Dictate** (raw transcript), **Dictate + Clean**
+  (transcript → Claude cleanup → paste), and the classic **rewrite** of selected text.
+- **History** — recover any past rewrite or dictation. Entries are badged by kind (Rewrite / Dictation /
+  Dictation + Clean); copy the before, the after, or a transcript back to the clipboard. Local, newest 100.
 - **Bring your own Anthropic API key** — stored in the macOS Keychain; only ever sent to `api.anthropic.com`.
 - **Live, self-updating model list** — fetched from `GET /v1/models`; pick any current model, no app update needed.
 - **Unlimited custom instructions** — each with its own name, system prompt, and global shortcut.
   Seeded with **Auto Clean** (⇧⌘R), **Formal**, **Friendly**, and **Translate to English**. No paywall.
-- **Guided setup** — the menu-bar icon shows status (⚠️ setup needed · spinning · **Aa** ready), and the
-  menu lists exactly what's missing with one-click fixes.
+- **Guided setup** — the menu-bar icon shows status (⚠️ setup needed · 🎙 listening · ↻ working · ready),
+  and the menu lists exactly what's missing — for rewriting *and* dictation — with one-click fixes.
 - **Launch at login** toggle.
 - Native Swift + SwiftUI menu-bar app. No Dock icon. No telemetry.
 
@@ -37,9 +45,10 @@ off and new ones appear with no app update.
 
 ## Requirements
 
-- macOS 13 (Ventura) or later — built and used on macOS 15.
+- macOS 13.3 (Ventura) or later — built and used on macOS 15.
 - Xcode **Command Line Tools** (`xcode-select --install`). **Full Xcode is not required.**
-- An Anthropic API key — <https://console.anthropic.com/settings/keys>.
+- An Anthropic API key (for rewriting and Dictate + Clean) — <https://console.anthropic.com/settings/keys>.
+- For dictation: a microphone and a one-time **~1.6 GB Whisper model download** (in-app, on-device).
 
 ---
 
@@ -60,7 +69,7 @@ git clone https://github.com/danb235/rewritedb.git && cd rewritedb
 ./Scripts/run.sh            # launches it (builds first if needed)
 ```
 
-A ✨/**Aa** icon appears in your menu bar (no Dock icon). You can also `open Package.swift` in Xcode
+A speech-bubble icon appears in your menu bar (no Dock icon). You can also `open Package.swift` in Xcode
 if you have the full IDE installed.
 
 ### First-time setup (one time)
@@ -72,18 +81,31 @@ if you have the full IDE installed.
    fetches the model list).
 3. **Pick a model.** Settings → **Model**. Use **Refresh Models** anytime to re-fetch the live list.
 
-The menu-bar icon turns into **Aa** once all three are done.
+The menu-bar icon becomes a speech bubble once all three are done.
+
+**Optional — set up dictation** (Settings → **Dictation**): (1) **Download** the Whisper model
+(~1.6 GB, on-device), (2) **Grant Microphone** access, (3) **set a hotkey** for *Dictate* and/or
+*Dictate + Clean*. Each step shows a ✓ when done, and the menu-bar icon only flags unfinished
+dictation setup once you've started (a rewrite-only user is never nagged).
 
 ---
 
 ## Usage
 
+**Rewrite selected text:**
 1. Select text in any app.
 2. Press **⇧⌘R** (Auto Clean), or pick an instruction from the menu-bar icon.
-3. The selection is replaced in place with Claude's rewrite (spinner shows while it works).
+3. The selection is replaced in place with Claude's rewrite (the icon spins while it works).
+
+**Dictate by voice:**
+1. Press your **Dictate** or **Dictate + Clean** hotkey (Settings → Dictation). The menu-bar icon
+   pulses while listening.
+2. Speak, then press the hotkey again to stop. The icon spins while it transcribes on-device (and,
+   for *Dictate + Clean*, runs the transcript through Claude).
+3. The text is pasted at your cursor.
 
 Add, edit, reorder, and assign shortcuts to instructions under **Settings → Instructions** — unlimited,
-free. Each menu entry shows its bound shortcut (or "no shortcut set").
+free. Recover any past rewrite or dictation from **History** (menu → History…).
 
 ---
 
@@ -109,9 +131,13 @@ rebuilds, so you grant access **once**.
 | Capture / replace | Synthesize ⌘C to copy, call the API, write result to the clipboard, synthesize ⌘V (then restore your clipboard) |
 | API | Raw HTTPS via `URLSession` — `POST /v1/messages`, `GET /v1/models`, `anthropic-version: 2023-06-01` |
 | API key storage | macOS Keychain (Security framework) |
-| Settings persistence | `UserDefaults` (instructions, selected model, cached model list) |
+| Settings persistence | `UserDefaults` (instructions, selected model, cached model list, dictation prefs) |
 | Launch at login | `SMAppService.mainApp` |
 | Live permission status | Polls `AXIsProcessTrusted()` **only while access is missing**, then stops |
+| Speech-to-text | Local **Whisper** (`large-v3-turbo`) via the prebuilt [whisper.cpp](https://github.com/ggml-org/whisper.cpp) XCFramework — a SwiftPM binary target with a precompiled Metal library, so it builds under CLT (no `metal` toolchain) yet is GPU-accelerated at runtime |
+| Audio capture | `AVAudioEngine` → 16 kHz mono via `AVAudioConverter`; kept in memory only, never written to disk |
+| Speech model | Downloaded once (~1.6 GB) to Application Support; fully offline afterward |
+| History | Before/after (or transcript) of each action as JSON in Application Support (newest 100) |
 
 > **KeyboardShortcuts is pinned to 1.15.0** because newer versions use the SwiftUI `#Preview` macro,
 > whose macro plugin ships only with full Xcode — so `swift build` under the Command Line Tools can't
@@ -127,16 +153,19 @@ Sources/
     Instruction.swift          # instruction model + seeded defaults
     AnthropicModel.swift       # model decoding + default-model selection
     AnthropicClient.swift      # Messages/Models API client + pure parsing helpers
-  RewriteDB/           # The menu-bar app (UI, permissions, hotkeys)
+    HistoryEntry.swift         # history model (kind + before/after) with legacy-safe decode
+  RewriteDB/           # The menu-bar app (UI, permissions, hotkeys, dictation)
     RewriteDBApp.swift, AppState.swift
-    Services/          # Keychain, RewriteService, LaunchAtLogin, Accessibility, ShortcutsRegistry
-    Views/             # MenuBarContent + Settings tabs (API Key / Model / Instructions / General)
+    Services/          # Keychain, RewriteService, LaunchAtLogin, Accessibility, ShortcutsRegistry,
+                       #   HistoryStore, MicrophonePermissions, WhisperEngine, WhisperModelStore, DictationService
+    Views/             # MenuBarContent, HistoryView + Settings tabs
+                       #   (API Key / Model / Instructions / Dictation / General)
   RewriteDBTests/      # Dependency-free test runner (`swift run RewriteDBTests`)
 Scripts/
   setup-signing.sh     # one-time: create local signing identity
-  build-app.sh         # build + bundle + sign RewriteDB.app
+  build-app.sh         # build + bundle (embeds whisper.framework) + sign RewriteDB.app
   run.sh               # build if needed, then launch
-Resources/Info.plist   # LSUIElement, bundle id, version
+Resources/Info.plist   # LSUIElement, bundle id, version, microphone usage string
 ```
 
 ---
@@ -164,6 +193,9 @@ It exits non-zero on any failure, and runs on every push via GitHub Actions ([CI
   then `tccutil reset Accessibility com.opensource.rewritedb` and grant access one final time — it
   persists from then on.
 - **"No text selected."** Ensure text is actually selected and the app supports ⌘C/⌘V.
+- **Dictation is greyed out / "Download speech model".** Open Settings → **Dictation** and download the
+  Whisper model (~1.6 GB, one time). Dictation also needs **Microphone** access (Settings → Dictation →
+  Grant…) — the menu-bar ⚠️ + "To dictate" checklist point you to whatever's missing.
 - **Not notarized.** This is a local/personal build; the first launch of an unsigned-for-distribution
   app may require right-click → Open, or approval under System Settings → Privacy & Security.
 

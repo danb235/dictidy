@@ -23,6 +23,14 @@ mkdir -p "$APP_DIR/Contents/Resources"
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 
+# Embed the whisper.cpp framework. It's a SwiftPM binaryTarget, so it is NOT copied into the
+# bundle automatically. Copy it into Contents/Frameworks and point @rpath there; the executable
+# links it as @rpath/whisper.framework/Versions/Current/whisper.
+echo "==> Embedding whisper.framework..."
+mkdir -p "$APP_DIR/Contents/Frameworks"
+cp -R "$(swift build -c "$CONFIG" --show-bin-path)/whisper.framework" "$APP_DIR/Contents/Frameworks/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_DIR/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+
 IDENTITY_CN="RewriteDB Self-Signed"
 if security find-identity -p codesigning 2>/dev/null | grep -q "${IDENTITY_CN}"; then
     echo "==> Signing with stable identity '${IDENTITY_CN}' (grants survive rebuilds)..."
