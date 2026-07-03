@@ -43,12 +43,19 @@ public enum AnthropicError: LocalizedError, Equatable {
 ///
 /// Response parsing lives in pure `static` helpers so it can be unit-tested without the network.
 public struct AnthropicClient {
+    /// The HTTP transport — injectable so the request/response/error paths are unit-testable without
+    /// a network. Defaults to `URLSession.shared`; production call sites pass nothing.
+    public typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
     public let apiKey: String
+    private let transport: Transport
     static let apiVersion = "2023-06-01"
     private static let baseURL = "https://api.anthropic.com"
 
-    public init(apiKey: String) {
+    public init(apiKey: String,
+                transport: @escaping Transport = { try await URLSession.shared.data(for: $0) }) {
         self.apiKey = apiKey
+        self.transport = transport
     }
 
     private func makeRequest(_ path: String, method: String = "GET", body: Data? = nil,
@@ -88,7 +95,7 @@ public struct AnthropicClient {
 
     private func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
-            return try await URLSession.shared.data(for: request)
+            return try await transport(request)
         } catch {
             throw AnthropicError.network(error.localizedDescription)
         }

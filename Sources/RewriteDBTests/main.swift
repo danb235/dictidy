@@ -32,6 +32,40 @@ func checkThrows(_ name: String, _ body: () throws -> Void) {
 
 func data(_ s: String) -> Data { Data(s.utf8) }
 
+// Async helpers for the network-path tests (stub transport — no real network).
+func checkAsync(_ name: String, _ body: () async throws -> Bool) async {
+    total += 1
+    do {
+        if try await body() { print("  ✓ \(name)") } else { failed += 1; print("  ✗ \(name)") }
+    } catch {
+        failed += 1; print("  ✗ \(name) (threw: \(error))")
+    }
+}
+
+func expectAnthropicError(_ name: String, _ body: () async throws -> Void,
+                          where predicate: (AnthropicError) -> Bool) async {
+    total += 1
+    do {
+        try await body()
+        failed += 1; print("  ✗ \(name) (expected an error, none thrown)")
+    } catch let error as AnthropicError {
+        if predicate(error) { print("  ✓ \(name)") }
+        else { failed += 1; print("  ✗ \(name) (wrong error: \(error))") }
+    } catch {
+        failed += 1; print("  ✗ \(name) (non-AnthropicError: \(error))")
+    }
+}
+
+func httpResponse(_ code: Int) -> HTTPURLResponse {
+    HTTPURLResponse(url: URL(string: "https://api.anthropic.com/v1/messages")!,
+                    statusCode: code, httpVersion: nil, headerFields: nil)!
+}
+
+/// A stub transport returning a fixed status + body — exercises send/validate/parse with no network.
+func stubTransport(_ code: Int, _ body: String) -> AnthropicClient.Transport {
+    { _ in (data(body), httpResponse(code)) }
+}
+
 print("Instruction")
 check("defaults contains 4 instructions", Instruction.defaults.count == 4)
 check("first default is Auto Clean", Instruction.defaults.first?.name == "Auto Clean")
@@ -224,6 +258,53 @@ check("extractErrorMessage reads error.message",
       == "model: claude-retired")
 check("extractErrorMessage is nil when absent",
       AnthropicClient.extractErrorMessage(data(#"{"content":[]}"#)) == nil)
+checkThrows("parseModels throws on a malformed body (.decoding)") {
+    _ = try AnthropicClient.parseModels(data(#"{"unexpected":true}"#))
+}
+check("every AnthropicError case has a non-empty description",
+      [AnthropicError.missingAPIKey, .http(429, "x"), .emptyResponse, .network("x"), .decoding("x")]
+        .allSatisfy { !($0.errorDescription ?? "").isEmpty })
+
+print("AnthropicClient network (stub transport)")
+let okBody = #"{"content":[{"type":"text","text":"Hello world."}]}"#
+await checkAsync("rewrite parses a 200 response") {
+    try await AnthropicClient(apiKey: "k", transport: stubTransport(200, okBody))
+        .rewrite(text: "x", systemPrompt: "s", model: "m") == "Hello world."
+}
+await checkAsync("listModels parses a 200 response") {
+    try await AnthropicClient(apiKey: "k",
+        transport: stubTransport(200, #"{"data":[{"type":"model","id":"claude-x","display_name":"X"}]}"#))
+        .listModels().map(\.id) == ["claude-x"]
+}
+let apiErr = #"{"type":"error","error":{"message":"nope"}}"#
+await expectAnthropicError("429 → .http, availability failure", {
+    _ = try await AnthropicClient(apiKey: "k", transport: stubTransport(429, apiErr))
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .http(let c, _) = $0 { return c == 429 && $0.isAvailabilityFailure }; return false })
+await expectAnthropicError("503 → .http, availability failure", {
+    _ = try await AnthropicClient(apiKey: "k", transport: stubTransport(503, apiErr))
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .http(let c, _) = $0 { return c == 503 && $0.isAvailabilityFailure }; return false })
+await expectAnthropicError("400 → .http, NOT an availability failure", {
+    _ = try await AnthropicClient(apiKey: "k", transport: stubTransport(400, apiErr))
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .http(let c, _) = $0 { return c == 400 && !$0.isAvailabilityFailure }; return false })
+await expectAnthropicError("transport failure → .network", {
+    _ = try await AnthropicClient(apiKey: "k", transport: { _ in throw URLError(.notConnectedToInternet) })
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .network = $0 { return true }; return false })
+await expectAnthropicError("empty content → .emptyResponse", {
+    _ = try await AnthropicClient(apiKey: "k", transport: stubTransport(200, #"{"content":[]}"#))
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { $0 == .emptyResponse })
+await expectAnthropicError("malformed 200 body → .decoding", {
+    _ = try await AnthropicClient(apiKey: "k", transport: stubTransport(200, #"{"unexpected":true}"#))
+        .rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .decoding = $0 { return true }; return false })
+await expectAnthropicError("non-UTF8 error body → .http with fallback message", {
+    let c = AnthropicClient(apiKey: "k", transport: { _ in (Data([0xFF, 0xFE]), httpResponse(500)) })
+    _ = try await c.rewrite(text: "x", systemPrompt: "s", model: "m")
+}, where: { if case .http(500, let msg) = $0 { return msg == "unknown error" }; return false })
 
 print("\n\(total - failed)/\(total) checks passed")
 if failed > 0 {
