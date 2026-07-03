@@ -5,14 +5,17 @@ import SwiftUI
 struct RewriteDBApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var state = AppState()
+    @StateObject private var updater = Updater()
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarContent()
                 .environmentObject(state)
+                .environmentObject(updater)
         } label: {
             MenuBarLabel()
                 .environmentObject(state)
+                .environmentObject(updater)
         }
 
         Window("RewriteDB Settings", id: "settings") {
@@ -35,6 +38,12 @@ struct RewriteDBApp: App {
                 .frame(width: 480, height: 560)
         }
         .windowResizability(.contentSize)
+
+        Window("Software Update", id: "update") {
+            UpdateView()
+                .environmentObject(updater)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -43,13 +52,17 @@ struct RewriteDBApp: App {
 /// raw SwiftUI label does not do. Animation comes from the frame counters `AppState` already ticks.
 struct MenuBarLabel: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var updater: Updater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let icon = iconState()
         Image(nsImage: Self.render(mode: icon.mode, frame: icon.frame))
             .accessibilityLabel(icon.label)
-            .onAppear(perform: maybeStartOnboarding)   // the label is present at launch
+            .onAppear {                                // the label is present at launch
+                maybeStartOnboarding()
+                updater.checkOnLaunchIfDue()
+            }
     }
 
     /// First launch: open the onboarding wizard for genuinely new users; silently mark an existing,

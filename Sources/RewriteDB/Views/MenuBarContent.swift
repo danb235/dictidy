@@ -3,6 +3,7 @@ import RewriteDBKit
 
 struct MenuBarContent: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var updater: Updater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -11,6 +12,15 @@ struct MenuBarContent: View {
             Divider()
         } else if state.isWorking {
             Text(state.statusMessage ?? "Working…")
+            Divider()
+        }
+
+        // A released newer version is available (found by the throttled launch check).
+        if case .available(let release) = updater.status {
+            Button("↓ Update to \(release.version)…") {
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "update")
+            }
             Divider()
         }
 
@@ -85,6 +95,12 @@ struct MenuBarContent: View {
         Button("Run Setup Again…") {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "onboarding")
+        }
+
+        Button("Check for Updates…") {
+            updater.check(force: true)
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "update")
         }
 
         Button("Quit RewriteDB") { NSApplication.shared.terminate(nil) }
