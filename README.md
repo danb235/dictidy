@@ -1,7 +1,8 @@
 # RewriteDB
 
 [![CI](https://github.com/danb235/rewritedb/actions/workflows/ci.yml/badge.svg)](https://github.com/danb235/rewritedb/actions/workflows/ci.yml)
-[![Platform](https://img.shields.io/badge/platform-macOS%2013.3%2B-blue)](#requirements)
+[![Latest release](https://img.shields.io/github/v/release/danb235/rewritedb?display_name=tag&sort=semver)](https://github.com/danb235/rewritedb/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%2013.3%2B%20(Apple%20Silicon)-blue)](#requirements)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Rewrite selected text — or **dictate by voice** — **anywhere on your Mac** with a keyboard shortcut.
@@ -71,9 +72,29 @@ on-device model and voice dictation.
 
 ---
 
-## Quick start
+## Download (prebuilt app)
 
-One-liner — clone, set up signing, build, and launch:
+The easiest way to run RewriteDB — no toolchain needed. **Apple Silicon (arm64) Macs, macOS 13.3+.**
+
+1. Grab the latest **`RewriteDB-vX.Y.Z.zip`** from the [**Releases**](https://github.com/danb235/rewritedb/releases/latest) page and unzip it.
+2. Move **RewriteDB.app** to `/Applications`.
+3. RewriteDB isn't notarized (it's open-source, with no paid Apple Developer account), so macOS
+   quarantines apps downloaded from the internet. Clear that flag — either in Terminal:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/RewriteDB.app
+   ```
+   …**or** double-click it, dismiss the "can't be opened" dialog, then go to **System Settings →
+   Privacy & Security**, scroll to **Security**, and click **Open Anyway** (admin password).
+   *(macOS Sequoia removed the old Control-click → Open shortcut.)*
+4. Launch it — the **onboarding wizard** walks you through setup. From then on it **updates itself**:
+   it checks for new releases and offers a one-click **Check for Updates…** (menu bar) that shows the
+   release notes before installing. (Optional: verify the download's SHA-256 against the release notes.)
+
+---
+
+## Quick start (build from source)
+
+For developers / to hack on it. One-liner — clone, set up signing, build, and launch:
 
 ```sh
 git clone https://github.com/danb235/rewritedb.git && cd rewritedb && ./Scripts/setup-signing.sh && ./Scripts/build-app.sh && ./Scripts/run.sh
@@ -234,8 +255,32 @@ It exits non-zero on any failure, and runs on every push via GitHub Actions ([CI
 - **Dictation is greyed out / "Download speech model".** Open Settings → **Dictation** and download the
   Whisper model (~1.6 GB, one time). Dictation also needs **Microphone** access (Settings → Dictation →
   Grant…) — the menu-bar ⚠️ + "To dictate" checklist point you to whatever's missing.
-- **Not notarized.** This is a local/personal build; the first launch of an unsigned-for-distribution
-  app may require right-click → Open, or approval under System Settings → Privacy & Security.
+- **"RewriteDB can't be opened" (downloaded app).** It isn't notarized. Clear the quarantine flag —
+  `xattr -dr com.apple.quarantine /Applications/RewriteDB.app` — **or** open it once, then
+  **System Settings → Privacy & Security → Open Anyway**. (Sequoia removed the Control-click → Open trick.)
+
+---
+
+## Releasing (maintainers)
+
+1. Move the relevant `## [Unreleased]` items in [`CHANGELOG.md`](CHANGELOG.md) into a new
+   `## [X.Y.Z] - YYYY-MM-DD` section and commit.
+2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. `.github/workflows/release.yml` runs the tests, builds + version-stamps `RewriteDB.app`, zips it,
+   and publishes a GitHub Release whose notes are that CHANGELOG section (+ install steps + SHA-256).
+
+**One-time: stable signing (recommended).** So the in-app updater's grants persist across upgrades
+(macOS ties Accessibility/Keychain to the signing identity), sign releases with a stable self-signed
+cert. Create it, export a `.p12`, and add it as repo secrets `RDB_SIGNING_P12` (base64) and
+`RDB_SIGNING_PASSWORD`:
+```sh
+./Scripts/setup-signing.sh    # creates the "RewriteDB Self-Signed" identity locally
+# export it to a .p12, then:
+base64 -i identity.p12 | gh secret set RDB_SIGNING_P12
+gh secret set RDB_SIGNING_PASSWORD   # the .p12 password
+```
+Without these secrets the release still builds (ad-hoc signed) — but each upgrade resets macOS
+permissions, so users must re-grant.
 
 ---
 
