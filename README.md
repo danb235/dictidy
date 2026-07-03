@@ -11,6 +11,10 @@ hotkey → speak → the transcription (optionally cleaned up by Claude) is past
 Rewriting uses the Anthropic (Claude) API by default, or an optional **on-device model** (no API
 key, fully offline); speech-to-text always runs **100% on-device** with Whisper.
 
+<!-- Add a screenshot or short GIF here once captured, e.g.:
+     ![RewriteDB](docs/screenshot.png)
+     The menu-bar icon + a rewrite in action + the onboarding wizard reads best. -->
+
 RewriteDB is an open-source reimagining of the (now abandoned) **RewriteCmd** app. It fixes the bug
 that broke the original: when using the Claude API, **model IDs are no longer baked into the binary** —
 the model list is fetched live from Anthropic, so it stays current automatically (retired models drop
@@ -25,6 +29,12 @@ on-device model and voice dictation.
 ```
 
 ---
+
+## Contents
+
+- [Features](#features) · [Requirements](#requirements) · [Download (prebuilt)](#download-prebuilt-app) · [Build from source](#quick-start-build-from-source) · [Usage](#usage)
+- [How it works](#how-it-works) · [Project structure](#project-structure) · [Testing](#testing) · [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing) · [Security](#security) · [Releasing](#releasing-maintainers) · [License](#license)
 
 ## Features
 
@@ -281,6 +291,21 @@ gh secret set RDB_SIGNING_PASSWORD   # the .p12 password
 ```
 Without these secrets the release still builds (ad-hoc signed) — but each upgrade resets macOS
 permissions, so users must re-grant.
+
+---
+
+## Contributing
+
+Contributions are welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to build (Command Line
+Tools only), run the tests, and open a PR, and **[ARCHITECTURE.md](ARCHITECTURE.md)** for a tour of the
+code. By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## Security
+
+Your API key stays in the macOS Keychain and is only sent to Anthropic; dictation and local rewriting
+run entirely on-device; there's no telemetry. To report a vulnerability, see **[SECURITY.md](SECURITY.md)**.
 
 ---
 
