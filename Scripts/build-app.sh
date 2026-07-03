@@ -7,10 +7,14 @@ CONFIG="${1:-release}"
 APP_NAME="RewriteDB"
 APP_DIR="$APP_NAME.app"
 
+# Host-arch build (arm64 on Apple Silicon). Universal (--arch arm64 --arch x86_64) is intentionally
+# NOT used: it requires full Xcode's XCBuild, which the Command Line Tools lack, and RewriteDB targets
+# Apple Silicon (Metal-accelerated whisper/llama). The CI release runner is arm64, so releases are arm64.
 echo "==> Building (${CONFIG})..."
 swift build -c "$CONFIG"
 
-BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/$APP_NAME"
+BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+BIN_PATH="$BIN_DIR/$APP_NAME"
 if [ ! -f "$BIN_PATH" ]; then
     echo "ERROR: Built binary not found at ${BIN_PATH}" >&2
     exit 1
@@ -23,11 +27,17 @@ mkdir -p "$APP_DIR/Contents/Resources"
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 
+# Stamp the release version into the bundle (the release workflow sets RDB_VERSION from the tag).
+if [ -n "${RDB_VERSION:-}" ]; then
+    echo "==> Stamping version ${RDB_VERSION}..."
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${RDB_VERSION}" "$APP_DIR/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${RDB_VERSION}" "$APP_DIR/Contents/Info.plist"
+fi
+
 # Embed the whisper.cpp and llama.cpp frameworks. They're SwiftPM binaryTargets, so they are NOT
 # copied into the bundle automatically. Copy them into Contents/Frameworks and point @rpath there;
 # the executable links them as @rpath/<name>.framework/Versions/Current/<name>.
 echo "==> Embedding whisper.framework + llama.framework..."
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 mkdir -p "$APP_DIR/Contents/Frameworks"
 cp -R "$BIN_DIR/whisper.framework" "$APP_DIR/Contents/Frameworks/"
 cp -R "$BIN_DIR/llama.framework" "$APP_DIR/Contents/Frameworks/"
