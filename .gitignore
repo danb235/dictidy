@@ -11,3 +11,6 @@ cov/
 
 # local browser-automation artifacts (screenshots, downloads)
 /.playwright-mcp/
+
+# Internal marketing workspace (audit, strategy, drafts) — never published
+/marketing/

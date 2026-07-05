@@ -1,0 +1,13 @@
+{
+  "name": "dictidy-site-build",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Build tooling for the Dictidy marketing site (prerender for SEO/AI crawlers).",
+  "scripts": {
+    "prerender": "node prerender.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}
