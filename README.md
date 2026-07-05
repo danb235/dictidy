@@ -376,8 +376,15 @@ The marketing site at **[dictidy.com](https://dictidy.com)** lives in [`site/`](
   dependencies), exported from Claude Design as "Standalone HTML". To update the design, edit it there
   and re-export over `site/index.html`. `site/_headers` (security + cache headers), `robots.txt`,
   `sitemap.xml`, `favicon.svg`, and `og-image.png` round out the deploy.
+- **Prerender for SEO / AI crawlers.** The export is a client-side React app, so crawlers that do not
+  run JavaScript (GPTBot, ClaudeBot, PerplexityBot, Google's first wave) would see only a splash.
+  [`site-build/prerender.mjs`](site-build/README.md) headless-renders the page and injects a static,
+  crawlable copy of the content plus JSON-LD structured data into `index.html`. **Re-run it after every
+  re-export:** `cd site-build && npm install && npm run prerender` (then `node verify.mjs`). The
+  prerendered output is committed, and the tooling lives outside `site/` so it is never deployed.
 - **Deploys** run only when `site/**` changes: push to `main` → production (dictidy.com); a PR that
-  touches `site/` → a preview URL commented on the PR. No build step (it's static).
+  touches `site/` → a preview URL commented on the PR. No build step in CI (the committed file is
+  already prerendered).
 
 **One-time setup.** Create a Cloudflare Pages project named `dictidy` (Direct Upload) and a **scoped API
 token** (`Account → Cloudflare Pages → Edit`, nothing else). Add them as **Environment secrets** on the
