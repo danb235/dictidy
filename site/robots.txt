@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dictidy.com/sitemap.xml

@@ -1,0 +1,47 @@
+name: Deploy site
+
+# Deploys the static marketing site in `site/` to Cloudflare Pages (project: dictidy).
+# Push to main -> production (dictidy.com). PRs that touch site/ -> a preview URL.
+# The Cloudflare token never reaches fork PRs: this uses `pull_request` (not
+# `pull_request_target`) and the deploy job is guarded to same-repo branches.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-site.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write   # lets wrangler-action comment the preview URL on the PR
+
+concurrency:
+  group: deploy-site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run the secret-using deploy for same-repo events (never for fork PRs).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    environment:
+      name: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=dictidy --branch=${{ github.head_ref || github.ref_name }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
