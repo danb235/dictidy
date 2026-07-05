@@ -8,3 +8,6 @@ DerivedData/
 
 # code-coverage scratch
 cov/
+
+# local browser-automation artifacts (screenshots, downloads)
+/.playwright-mcp/

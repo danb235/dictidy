@@ -367,6 +367,32 @@ your own `build-app.sh` dev builds; end users only ever see the CI identity abov
 
 ---
 
+## Website (maintainers)
+
+The marketing site at **[dictidy.com](https://dictidy.com)** lives in [`site/`](site/) and deploys to
+**Cloudflare Pages** (project `dictidy`) via [`.github/workflows/deploy-site.yml`](.github/workflows/deploy-site.yml).
+
+- **`site/index.html`** is a single self-contained file (fonts and everything inlined, no external
+  dependencies), exported from Claude Design as "Standalone HTML". To update the design, edit it there
+  and re-export over `site/index.html`. `site/_headers` (security + cache headers), `robots.txt`,
+  `sitemap.xml`, `favicon.svg`, and `og-image.png` round out the deploy.
+- **Deploys** run only when `site/**` changes: push to `main` → production (dictidy.com); a PR that
+  touches `site/` → a preview URL commented on the PR. No build step (it's static).
+
+**One-time setup.** Create a Cloudflare Pages project named `dictidy` (Direct Upload) and a **scoped API
+token** (`Account → Cloudflare Pages → Edit`, nothing else). Add them as **Environment secrets** on the
+`production` and `preview` GitHub environments: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+Attach the custom domain `dictidy.com` (+ a `www` → apex redirect) in the Pages project.
+
+**Security (public repo).** GitHub secrets are write-only and are withheld from forked-PR runs; the
+workflow uses `pull_request` (never `pull_request_target`) and guards the deploy job to same-repo
+branches, so a fork PR can never run with the token. `main` is protected (PR + review, no direct
+pushes), the `production` environment is restricted to `main` with a required reviewer, `v*` tags are
+protection-ruled to maintainers, and [`CODEOWNERS`](.github/CODEOWNERS) requires review on
+`.github/workflows/**` and `site/_headers`. The token is least-privilege (Pages-only) and revocable.
+
+---
+
 ## Contributing
 
 Contributions are welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to build (Command Line

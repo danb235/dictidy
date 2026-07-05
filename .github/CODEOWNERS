@@ -1,0 +1,8 @@
+# Changes to CI/CD, deploy config, and served security headers require @danb235's review.
+# This is the guard that stops anyone from slipping in a secret-stealing workflow via a PR.
+
+/.github/           @danb235
+/.github/workflows/ @danb235
+/site/_headers      @danb235
+/CODEOWNERS         @danb235
+/.github/CODEOWNERS @danb235
