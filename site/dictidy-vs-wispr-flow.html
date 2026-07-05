@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Dictidy vs Wispr Flow: a free, open-source, on-device alternative</title>
+<meta name="description" content="Dictidy vs Wispr Flow, compared honestly. Dictidy is a free, open-source Mac app with on-device dictation, cleanup, and rewrite-anywhere. Wispr Flow is a polished, cloud, subscription dictation app. See the differences.">
+<link rel="canonical" href="https://dictidy.com/dictidy-vs-wispr-flow">
+<meta name="theme-color" content="#0B0B0F">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230A84FF%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%235E5CE6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2215%22%20fill%3D%22url%28%23g%29%22/%3E%3Cg%20fill%3D%22%23fff%22%3E%3Crect%20x%3D%2216%22%20y%3D%2224.85%22%20width%3D%224%22%20height%3D%2214.3%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2223%22%20y%3D%2220.45%22%20width%3D%224%22%20height%3D%2223.1%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2215%22%20width%3D%224%22%20height%3D%2234%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2237%22%20y%3D%2220.45%22%20width%3D%224%22%20height%3D%2223.1%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2244%22%20y%3D%2224.85%22%20width%3D%224%22%20height%3D%2214.3%22%20rx%3D%222%22/%3E%3C/g%3E%3C/svg%3E">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Dictidy">
+<meta property="og:url" content="https://dictidy.com/dictidy-vs-wispr-flow">
+<meta property="og:title" content="Dictidy vs Wispr Flow: a free, open-source, on-device alternative">
+<meta property="og:description" content="Dictidy vs Wispr Flow, compared honestly. Free, open source, on-device dictation plus cleanup and rewrite-anywhere versus a polished cloud subscription app.">
+<meta property="og:image" content="https://dictidy.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dictidy vs Wispr Flow">
+<meta name="twitter:description" content="A free, open-source, on-device alternative to Wispr Flow, compared honestly.">
+<meta name="twitter:image" content="https://dictidy.com/og-image.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Dictidy","item":"https://dictidy.com/"},{"@type":"ListItem","position":2,"name":"Dictidy vs Wispr Flow","item":"https://dictidy.com/dictidy-vs-wispr-flow"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Dictidy a free alternative to Wispr Flow?","acceptedAnswer":{"@type":"Answer","text":"Yes. Dictidy is free and open source under the MIT license, with no subscription and no paid tier. Wispr Flow has a free tier with a word limit and paid plans above it."}},{"@type":"Question","name":"Does Dictidy send my voice to the cloud like Wispr Flow?","acceptedAnswer":{"@type":"Answer","text":"No. Dictidy runs dictation on-device with Whisper large-v3-turbo, so your audio never leaves your Mac. Cleanup also runs on-device by default, or you can opt in to your own Claude API key. Wispr Flow processes speech in the cloud."}},{"@type":"Question","name":"Can Wispr Flow rewrite text I already wrote?","acceptedAnswer":{"@type":"Answer","text":"Wispr Flow focuses on dictation. Dictidy can also rewrite text you have already selected in any app, in place, from the same shortcut."}},{"@type":"Question","name":"What are the downsides of Dictidy versus Wispr Flow?","acceptedAnswer":{"@type":"Answer","text":"Dictidy is Apple Silicon and macOS 13.3 or later only, and it is self-signed rather than notarized, so macOS shows a one-time prompt on first open. Wispr Flow is more polished out of the box and supports more platforms."}}]}</script>
+<style>
+:root{--bg:#0B0B0F;--panel:#141419;--line:rgba(255,255,255,.09);--text:#EDEDF0;--muted:#9A9AA6;--blue:#0A84FF;--indigo:#5E5CE6;--good:#34D399;--bad:#8A8A96}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:820px;margin:0 auto;padding:0 24px}
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:saturate(160%) blur(14px);background:rgba(11,11,15,.72);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:14px;padding-bottom:14px;max-width:960px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;font-size:17px}
+.brand svg{width:26px;height:26px;border-radius:7px}
+.btn{display:inline-block;background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:11px;font-size:15px;border:0;transition:opacity .15s}
+.btn:hover{opacity:.92}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+main{padding:56px 0 40px}
+.eyebrow{color:var(--muted);font-size:13px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.12;letter-spacing:-.02em;margin:12px 0 20px;font-weight:800}
+.lede{font-size:19px;color:#C9C9D2;margin-bottom:14px}
+h2{font-size:26px;letter-spacing:-.01em;margin:44px 0 14px;font-weight:750}
+h3{font-size:19px;margin:26px 0 8px;font-weight:700}
+p{margin:0 0 14px;color:#D2D2DA}
+strong{color:#fff}
+ul{margin:0 0 16px 22px}li{margin:6px 0;color:#D2D2DA}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0 8px}
+.sub{color:var(--muted);font-size:13px}
+.table-scroll{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line)}
+thead th{background:var(--panel);font-weight:700;color:#fff}
+tbody tr:last-child td{border-bottom:0}
+td.col1{color:#C9C9D2;font-weight:600}
+.yes{color:var(--good);font-weight:700}.no{color:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+details{border:1px solid var(--line);border-radius:12px;padding:2px 16px;margin:10px 0;background:var(--panel)}
+summary{cursor:pointer;font-weight:650;padding:14px 0;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";float:right;color:var(--muted)}
+details[open] summary::after{content:"\2212"}
+details p{padding-bottom:14px;margin:0}
+footer{border-top:1px solid var(--line);margin-top:56px;padding:28px 0;color:var(--muted);font-size:14px}
+footer a{color:#C9C9D2;text-decoration:none;margin-right:18px}
+.disclosure{font-size:13px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="https://dictidy.com/">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A84FF"/><stop offset="1" stop-color="#5E5CE6"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#g)"/><g fill="#fff"><rect x="16" y="24.85" width="4" height="14.3" rx="2"/><rect x="23" y="20.45" width="4" height="23.1" rx="2"/><rect x="30" y="15" width="4" height="34" rx="2"/><rect x="37" y="20.45" width="4" height="23.1" rx="2"/><rect x="44" y="24.85" width="4" height="14.3" rx="2"/></g></svg>
+    Dictidy
+  </a>
+  <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download for Mac, Free</a>
+</div></header>
+
+<main class="wrap">
+  <p class="eyebrow">Comparison</p>
+  <h1>Dictidy vs Wispr Flow</h1>
+  <p class="lede">Dictidy is a free, open-source macOS app that dictates by voice and rewrites selected text anywhere you type, all from one shortcut, with dictation running on-device. Wispr Flow is a polished, cloud-based dictation app on a subscription. Here is an honest comparison so you can pick the right one.</p>
+
+  <div class="cta-row">
+    <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download Dictidy, Free</a>
+    <a class="btn ghost" href="https://github.com/danb235/dictidy">View source on GitHub</a>
+  </div>
+  <p class="sub">macOS 13.3+ · Apple Silicon · MIT licensed · No telemetry</p>
+
+  <h2>The short version</h2>
+  <p>Wispr Flow is genuinely good at fast, accurate dictation and is very polished. It is also cloud based and subscription based, and it focuses on turning speech into text. Dictidy does the dictation part on-device (your audio never leaves your Mac), adds cleanup in the same flow, and can also <strong>rewrite text you have already written</strong> in any app. And it is free and open source.</p>
+  <p>If you want the most frictionless commercial dictation product and do not mind a subscription or the cloud, Wispr Flow is a strong choice. If you want a free, private, open-source tool that also rewrites existing text, use Dictidy.</p>
+
+  <h2>Side by side</h2>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Feature</th><th>Dictidy</th><th>Wispr Flow</th></tr></thead>
+    <tbody>
+      <tr><td class="col1">Price</td><td><span class="yes">Free</span> (MIT open source)</td><td>Free tier with a word limit, then subscription</td></tr>
+      <tr><td class="col1">Source code</td><td><span class="yes">Open</span></td><td class="no">Closed</td></tr>
+      <tr><td class="col1">Dictation processing</td><td><span class="yes">On-device</span> (Whisper large-v3-turbo)</td><td>Cloud</td></tr>
+      <tr><td class="col1">Cleanup (filler, grammar)</td><td><span class="yes">Yes</span>, on-device or your Claude key</td><td>Yes, cloud</td></tr>
+      <tr><td class="col1">Rewrite existing text</td><td><span class="yes">Yes</span>, in place, any app</td><td class="no">No (dictation focused)</td></tr>
+      <tr><td class="col1">Works in any app</td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td></tr>
+      <tr><td class="col1">Telemetry</td><td><span class="yes">None</span></td><td>Yes</td></tr>
+      <tr><td class="col1">Platforms</td><td>macOS 13.3+, Apple Silicon</td><td>macOS and Windows</td></tr>
+      <tr><td class="col1">Install</td><td>Self-signed (one-time prompt)</td><td>Notarized installer</td></tr>
+    </tbody>
+  </table></div>
+  <p class="disclosure">Competitor details reflect public information at the time of writing and can change. Check Wispr Flow's site for current pricing and features.</p>
+
+  <h2>Privacy: on-device versus cloud</h2>
+  <p>This is the biggest practical difference. Dictidy transcribes your speech on your Mac using a local Whisper model, so the audio never leaves the device. The cleanup step also runs on-device by default (a local model), and using your own Claude API key for cleanup is an opt-in choice, not a requirement. Wispr Flow sends your speech to its servers to transcribe. For sensitive work (legal, medical, private notes) the on-device path removes a whole category of concern.</p>
+
+  <h2>Price: free and open versus subscription</h2>
+  <p>Dictidy is free forever and MIT licensed. There is no trial, no word cap, and no paid tier. You can read every line of the source on GitHub, and you can build it yourself. Wispr Flow offers a limited free tier and charges a subscription for full use. If you dictate a lot, that difference compounds.</p>
+
+  <h2>The feature Wispr Flow does not have: rewrite anywhere</h2>
+  <p>Both apps turn speech into clean text. Dictidy adds a second job: select text you have already written, press the shortcut, and Dictidy rewrites it in place (fix grammar, change tone, tighten it) without leaving the app you are in. That makes Dictidy useful even when you are not dictating at all.</p>
+
+  <h2>Where Wispr Flow is the better pick</h2>
+  <p>Being honest: Wispr Flow is more polished out of the box, supports Windows as well as macOS, and is notarized so it installs with zero friction. Dictidy is Apple Silicon and macOS 13.3+ only, and because it is free and open source with no paid Apple Developer account, it is self-signed rather than notarized, so macOS shows a one-time "unidentified developer" prompt on first open (right-click Open, or a one-line Terminal command). If those matter more to you than price, privacy, and open source, Wispr Flow may fit better.</p>
+
+  <h2>FAQ</h2>
+  <details><summary>Is Dictidy a free alternative to Wispr Flow?</summary><p>Yes. Dictidy is free and open source under the MIT license, with no subscription and no paid tier. Wispr Flow has a limited free tier and paid plans above it.</p></details>
+  <details><summary>Does Dictidy send my voice to the cloud like Wispr Flow?</summary><p>No. Dictidy runs dictation on-device with Whisper large-v3-turbo, so your audio never leaves your Mac. Cleanup runs on-device by default, or you can opt in to your own Claude API key. Wispr Flow transcribes in the cloud.</p></details>
+  <details><summary>Can Wispr Flow rewrite text I already wrote?</summary><p>Wispr Flow focuses on dictation. Dictidy can also rewrite text you have already selected in any app, in place, from the same shortcut.</p></details>
+  <details><summary>What are the downsides of Dictidy versus Wispr Flow?</summary><p>Dictidy is Apple Silicon and macOS 13.3 or later only, and it is self-signed rather than notarized, so macOS shows a one-time prompt on first open. Wispr Flow is more polished out of the box and also runs on Windows.</p></details>
+
+  <h2>Try Dictidy</h2>
+  <p>It is free, open source, and dictation runs entirely on your Mac. See for yourself.</p>
+  <div class="cta-row">
+    <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download for Mac, Free</a>
+    <a class="btn ghost" href="https://dictidy.com/">See all features</a>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <a href="https://dictidy.com/">Dictidy</a>
+  <a href="https://github.com/danb235/dictidy">GitHub</a>
+  <a href="https://dictidy.com/#faq">FAQ</a>
+  <a href="https://github.com/danb235/dictidy/releases/latest">Releases</a>
+  <p style="margin-top:14px">Free and open source under the MIT license. Dictate or rewrite text anywhere on your Mac.</p>
+</div></footer>
+</body>
+</html>
