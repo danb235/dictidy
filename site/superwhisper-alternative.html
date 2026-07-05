@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>A free, open-source superwhisper alternative for Mac</title>
+<meta name="description" content="Looking for a superwhisper alternative? Dictidy is a free, open-source Mac app with on-device dictation, on-device cleanup, and rewrite-anywhere. See how it compares to superwhisper, honestly.">
+<link rel="canonical" href="https://dictidy.com/superwhisper-alternative">
+<meta name="theme-color" content="#0B0B0F">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230A84FF%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%235E5CE6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2215%22%20fill%3D%22url%28%23g%29%22/%3E%3Cg%20fill%3D%22%23fff%22%3E%3Crect%20x%3D%2216%22%20y%3D%2224.85%22%20width%3D%224%22%20height%3D%2214.3%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2223%22%20y%3D%2220.45%22%20width%3D%224%22%20height%3D%2223.1%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2215%22%20width%3D%224%22%20height%3D%2234%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2237%22%20y%3D%2220.45%22%20width%3D%224%22%20height%3D%2223.1%22%20rx%3D%222%22/%3E%3Crect%20x%3D%2244%22%20y%3D%2224.85%22%20width%3D%224%22%20height%3D%2214.3%22%20rx%3D%222%22/%3E%3C/g%3E%3C/svg%3E">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Dictidy">
+<meta property="og:url" content="https://dictidy.com/superwhisper-alternative">
+<meta property="og:title" content="A free, open-source superwhisper alternative for Mac">
+<meta property="og:description" content="Dictidy is a free, open-source Mac app with on-device dictation and cleanup plus rewrite-anywhere. An honest comparison with superwhisper.">
+<meta property="og:image" content="https://dictidy.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A free, open-source superwhisper alternative">
+<meta name="twitter:description" content="Dictidy versus superwhisper, compared honestly. Free, open source, on-device, plus rewrite-anywhere.">
+<meta name="twitter:image" content="https://dictidy.com/og-image.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Dictidy","item":"https://dictidy.com/"},{"@type":"ListItem","position":2,"name":"superwhisper alternative","item":"https://dictidy.com/superwhisper-alternative"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Dictidy a free alternative to superwhisper?","acceptedAnswer":{"@type":"Answer","text":"Yes. Dictidy is free and open source under the MIT license, with no subscription and no paid tier. superwhisper is closed source and freemium, with a free tier, a paid plan, and a lifetime option."}},{"@type":"Question","name":"Does Dictidy run on-device like superwhisper?","acceptedAnswer":{"@type":"Answer","text":"Yes. Both run dictation on-device on Apple Silicon. Dictidy uses Whisper large-v3-turbo for transcription, and cleanup runs on-device with a local model by default, or with your own Claude API key if you opt in. superwhisper has a similar on-device architecture with optional cloud LLM cleanup via your own key."}},{"@type":"Question","name":"Can superwhisper rewrite text I already wrote?","acceptedAnswer":{"@type":"Answer","text":"superwhisper focuses on dictation. Dictidy can also rewrite text you have already selected in any app, in place, from the same shortcut."}},{"@type":"Question","name":"Where is superwhisper the better pick?","acceptedAnswer":{"@type":"Answer","text":"superwhisper is more polished, has an iOS app, offers a choice of transcription models and more modes, and ships a notarized install. Dictidy is Apple Silicon and macOS 13.3 or later only and is self-signed, so macOS shows a one-time prompt on first open."}}]}</script>
+<style>
+:root{--bg:#0B0B0F;--panel:#141419;--line:rgba(255,255,255,.09);--text:#EDEDF0;--muted:#9A9AA6;--blue:#0A84FF;--indigo:#5E5CE6;--good:#34D399;--bad:#8A8A96}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:820px;margin:0 auto;padding:0 24px}
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:saturate(160%) blur(14px);background:rgba(11,11,15,.72);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:14px;padding-bottom:14px;max-width:960px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;font-size:17px}
+.brand svg{width:26px;height:26px;border-radius:7px}
+.btn{display:inline-block;background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:11px;font-size:15px;border:0;transition:opacity .15s}
+.btn:hover{opacity:.92}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+main{padding:56px 0 40px}
+.eyebrow{color:var(--muted);font-size:13px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.12;letter-spacing:-.02em;margin:12px 0 20px;font-weight:800}
+.lede{font-size:19px;color:#C9C9D2;margin-bottom:14px}
+h2{font-size:26px;letter-spacing:-.01em;margin:44px 0 14px;font-weight:750}
+h3{font-size:19px;margin:26px 0 8px;font-weight:700}
+p{margin:0 0 14px;color:#D2D2DA}
+strong{color:#fff}
+ul{margin:0 0 16px 22px}li{margin:6px 0;color:#D2D2DA}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0 8px}
+.sub{color:var(--muted);font-size:13px}
+.table-scroll{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line)}
+thead th{background:var(--panel);font-weight:700;color:#fff}
+tbody tr:last-child td{border-bottom:0}
+td.col1{color:#C9C9D2;font-weight:600}
+.yes{color:var(--good);font-weight:700}.no{color:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+details{border:1px solid var(--line);border-radius:12px;padding:2px 16px;margin:10px 0;background:var(--panel)}
+summary{cursor:pointer;font-weight:650;padding:14px 0;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";float:right;color:var(--muted)}
+details[open] summary::after{content:"\2212"}
+details p{padding-bottom:14px;margin:0}
+footer{border-top:1px solid var(--line);margin-top:56px;padding:28px 0;color:var(--muted);font-size:14px}
+footer a{color:#C9C9D2;text-decoration:none;margin-right:18px}
+.disclosure{font-size:13px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="https://dictidy.com/">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A84FF"/><stop offset="1" stop-color="#5E5CE6"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#g)"/><g fill="#fff"><rect x="16" y="24.85" width="4" height="14.3" rx="2"/><rect x="23" y="20.45" width="4" height="23.1" rx="2"/><rect x="30" y="15" width="4" height="34" rx="2"/><rect x="37" y="20.45" width="4" height="23.1" rx="2"/><rect x="44" y="24.85" width="4" height="14.3" rx="2"/></g></svg>
+    Dictidy
+  </a>
+  <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download for Mac, Free</a>
+</div></header>
+
+<main class="wrap">
+  <p class="eyebrow">Alternative</p>
+  <h1>A free, open-source superwhisper alternative</h1>
+  <p class="lede">Dictidy is a free, open-source macOS app that dictates by voice and rewrites selected text anywhere you type, all from one shortcut, with dictation running on-device. superwhisper is a polished, closed-source dictation app with a very similar on-device design. Here is an honest comparison so you can pick the right one.</p>
+
+  <div class="cta-row">
+    <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download Dictidy, Free</a>
+    <a class="btn ghost" href="https://github.com/danb235/dictidy">View source on GitHub</a>
+  </div>
+  <p class="sub">macOS 13.3+ · Apple Silicon · MIT licensed · No telemetry</p>
+
+  <h2>The short version</h2>
+  <p>superwhisper is one of the best on-device dictation apps on the Mac. It runs Whisper models locally on Apple Silicon, offers optional cloud cleanup with your own API key, has an iOS app, and gives you a choice of transcription models and modes. Its architecture is close to Dictidy's, which is a good sign that the design is sound.</p>
+  <p>The difference is what surrounds that design. Dictidy is <strong>free and open source</strong> (MIT), the cleanup step runs on-device by default, and it can also <strong>rewrite text you have already written</strong> in any app. If you want a private, on-device tool that costs nothing, whose source you can read, and that also rewrites existing text, use Dictidy. If you want the most polished, most configurable option and do not mind paying, superwhisper is a strong choice.</p>
+
+  <h2>Side by side</h2>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Feature</th><th>Dictidy</th><th>superwhisper</th></tr></thead>
+    <tbody>
+      <tr><td class="col1">Price</td><td><span class="yes">Free</span> (MIT open source)</td><td>Free tier, paid plan, lifetime option</td></tr>
+      <tr><td class="col1">Source code</td><td><span class="yes">Open</span></td><td class="no">Closed</td></tr>
+      <tr><td class="col1">Dictation processing</td><td><span class="yes">On-device</span> (Whisper large-v3-turbo)</td><td><span class="yes">On-device</span> (Apple Silicon)</td></tr>
+      <tr><td class="col1">Cleanup (filler, grammar)</td><td><span class="yes">Yes</span>, on-device or your Claude key</td><td>Yes, optional cloud with your key</td></tr>
+      <tr><td class="col1">Rewrite existing text</td><td><span class="yes">Yes</span>, in place, any app</td><td class="no">No (dictation focused)</td></tr>
+      <tr><td class="col1">Model and mode choice</td><td>Fixed, curated models</td><td><span class="yes">Yes</span>, multiple models and modes</td></tr>
+      <tr><td class="col1">Works in any app</td><td><span class="yes">Yes</span></td><td><span class="yes">Yes</span></td></tr>
+      <tr><td class="col1">Telemetry</td><td><span class="yes">None</span></td><td>Check their privacy policy</td></tr>
+      <tr><td class="col1">Platforms</td><td>macOS 13.3+, Apple Silicon</td><td>macOS and iOS</td></tr>
+      <tr><td class="col1">Install</td><td>Self-signed (one-time prompt)</td><td>Notarized install</td></tr>
+    </tbody>
+  </table></div>
+  <p class="disclosure">Competitor details reflect public information at the time of writing and can change. Check superwhisper's site for current pricing and features.</p>
+
+  <h2>Same on-device idea, different terms</h2>
+  <p>Both apps share the core privacy design: transcribe your speech locally on Apple Silicon so the audio never leaves your Mac, then optionally run a language model to clean up filler words and grammar. superwhisper lets you bring your own API key for cloud cleanup. Dictidy runs cleanup on-device by default with a local model, and bringing your own Claude API key is an opt-in choice, not a requirement. On the transcription side, Dictidy uses Whisper large-v3-turbo. The practical privacy story is similar, which is exactly why the deciding factors become price, source, and the rewrite feature.</p>
+
+  <h2>Price: free and open versus paid tiers</h2>
+  <p>Dictidy is free forever and MIT licensed. There is no trial, no word cap, and no paid tier. You can read every line of the source on GitHub and build it yourself. superwhisper is closed source with a limited free tier, a paid plan, and a lifetime option for people who want to buy once instead of subscribing. If cost and openness matter to you, that is the clearest difference.</p>
+
+  <h2>The feature superwhisper does not have: rewrite anywhere</h2>
+  <p>Both apps turn speech into clean text. Dictidy adds a second job: select text you have already written, press the shortcut, and Dictidy rewrites it in place (fix grammar, change tone, tighten it) without leaving the app you are in. That makes Dictidy useful even when you are not dictating at all.</p>
+
+  <h2>Where superwhisper is the better pick</h2>
+  <p>Being honest: superwhisper is more polished, more configurable, and more mature. It has an iOS app, a choice of transcription models, and more dictation modes, and it ships a notarized install that opens with zero friction. Dictidy is Apple Silicon and macOS 13.3+ only, and because it is free and open source with no paid Apple Developer account, it is self-signed rather than notarized, so macOS shows a one-time "unidentified developer" prompt on first open (right-click Open, or a one-line Terminal command). If polish, iOS, and model choice matter more to you than price, open source, and rewrite-anywhere, superwhisper may fit better.</p>
+
+  <h2>FAQ</h2>
+  <details><summary>Is Dictidy a free alternative to superwhisper?</summary><p>Yes. Dictidy is free and open source under the MIT license, with no subscription and no paid tier. superwhisper is closed source and freemium, with a free tier, a paid plan, and a lifetime option.</p></details>
+  <details><summary>Does Dictidy run on-device like superwhisper?</summary><p>Yes. Both run dictation on-device on Apple Silicon. Dictidy uses Whisper large-v3-turbo for transcription, and cleanup runs on-device with a local model by default, or with your own Claude API key if you opt in. superwhisper has a similar on-device architecture with optional cloud LLM cleanup via your own key.</p></details>
+  <details><summary>Can superwhisper rewrite text I already wrote?</summary><p>superwhisper focuses on dictation. Dictidy can also rewrite text you have already selected in any app, in place, from the same shortcut.</p></details>
+  <details><summary>Where is superwhisper the better pick?</summary><p>superwhisper is more polished, has an iOS app, offers a choice of transcription models and more modes, and ships a notarized install. Dictidy is Apple Silicon and macOS 13.3 or later only and is self-signed, so macOS shows a one-time prompt on first open.</p></details>
+
+  <h2>Try Dictidy</h2>
+  <p>It is free, open source, and dictation runs entirely on your Mac. See for yourself.</p>
+  <div class="cta-row">
+    <a class="btn" href="https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip">Download for Mac, Free</a>
+    <a class="btn ghost" href="https://dictidy.com/">See all features</a>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <a href="https://dictidy.com/">Dictidy</a>
+  <a href="https://github.com/danb235/dictidy">GitHub</a>
+  <a href="https://dictidy.com/#faq">FAQ</a>
+  <a href="https://github.com/danb235/dictidy/releases/latest">Releases</a>
+  <p style="margin-top:14px">Free and open source under the MIT license. Dictate or rewrite text anywhere on your Mac.</p>
+</div></footer>
+</body>
+</html>
