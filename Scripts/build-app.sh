@@ -26,6 +26,7 @@ mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"   # the equalizer logo (CFBundleIconFile)
 
 # Stamp the release version into the bundle (the release workflow sets DICTIDY_VERSION from the tag).
 if [ -n "${DICTIDY_VERSION:-}" ]; then

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Dictidy app icon: the equalizer logo. Blue to indigo rounded-square badge with a
+       white symmetric 5-bar equalizer, matching the menu-bar WaveformIcon, the favicon,
+       and the marketing site. Padded and corner-radiused to macOS app-icon proportions. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#5E5CE6"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/>
+  <g fill="#FFFFFF">
+    <rect x="306" y="420" width="52" height="184" rx="26"/>
+    <rect x="396" y="363" width="52" height="298" rx="26"/>
+    <rect x="486" y="293" width="52" height="438" rx="26"/>
+    <rect x="576" y="363" width="52" height="298" rx="26"/>
+    <rect x="666" y="420" width="52" height="184" rx="26"/>
+  </g>
+</svg>
