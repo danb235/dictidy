@@ -61,8 +61,8 @@ jobs:
           SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
-          # Stable-named copy (byte-identical) so the website can link to a permanent,
-          # always-latest direct download that needs no JS or GitHub API:
+          # Stable-named copy (byte-identical) so there is a permanent, always-latest
+          # direct download URL that needs no JS or GitHub API:
           # https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip
           cp "$ZIP" Dictidy-macOS.zip
 
@@ -91,8 +91,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           # Versioned zip first so the in-app updater (picks the first .zip asset) and the
-          # changelog checksum both reference it; the stable-named copy is a permanent
-          # website download link.
+          # changelog checksum both reference it; the stable-named copy is the permanent,
+          # always-latest download URL.
           files: |
             ${{ env.ZIP }}
             Dictidy-macOS.zip
