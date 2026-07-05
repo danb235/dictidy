@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub Release + upload the .app zip
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Test before releasing
+        run: swift run DictidyTests
+
+      # Optional: sign releases with a stable self-signed identity so macOS keeps the app's
+      # Accessibility/Keychain grants across upgrades (and the in-app updater can verify a
+      # download is genuinely ours). Absent the secret, the app is ad-hoc signed and still works,
+      # but each upgrade resets permissions. See README "Releasing".
+      - name: Import signing certificate (optional)
+        env:
+          DICTIDY_SIGNING_P12: ${{ secrets.DICTIDY_SIGNING_P12 }}
+          DICTIDY_SIGNING_PASSWORD: ${{ secrets.DICTIDY_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DICTIDY_SIGNING_P12:-}" ]; then
+            echo "::warning::No DICTIDY_SIGNING_P12 secret — release will be ad-hoc signed (upgrades reset macOS permissions)."
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/rdb.keychain-db"
+          security create-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          printf '%s' "$DICTIDY_SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$DICTIDY_SIGNING_PASSWORD" -A -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KEYCHAIN" >/dev/null
+          # Add the temp keychain to the search list so build-app.sh's `security find-identity` sees it.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+
+      - name: Build, package, and write release notes
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          DICTIDY_VERSION="$VERSION" ./Scripts/build-app.sh release   # arm64 (Apple Silicon)
+          codesign --verify --deep --strict --verbose=2 Dictidy.app
+          ZIP="Dictidy-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent Dictidy.app "$ZIP"
+          SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+          # Release body = this version's CHANGELOG section + install steps + checksum.
+          {
+            awk -v v="$VERSION" '
+              $0 ~ "^## \\[" v "\\]" { p = 1; next }
+              p && /^## \[/          { p = 0 }
+              p                      { print }
+            ' CHANGELOG.md
+            echo ""
+            echo "---"
+            echo "### Install"
+            echo "1. Download \`$ZIP\`, unzip, and move **Dictidy.app** to \`/Applications\`."
+            echo "2. It isn't notarized, so clear the download quarantine:"
+            echo '   ```sh'
+            echo "   xattr -dr com.apple.quarantine /Applications/Dictidy.app"
+            echo '   ```'
+            echo "   …or open it once, then **System Settings → Privacy & Security → Open Anyway**."
+            echo "3. Launch — the onboarding wizard guides setup. It updates itself via **Check for Updates…**."
+            echo ""
+            echo "**SHA-256** \`$ZIP\`: \`$SHA\`"
+          } > RELEASE_NOTES.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true

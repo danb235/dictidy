@@ -1,0 +1,10 @@
+.build/
+.swiftpm/
+*.app/
+DerivedData/
+.DS_Store
+*.xcodeproj
+*.xcworkspace
+
+# code-coverage scratch
+cov/

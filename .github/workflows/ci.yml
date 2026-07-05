@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15          # pinned: macos-latest is mid-migration to macOS 26
+    timeout-minutes: 20
+    env:
+      COVERAGE_MIN: "99"       # DictidyKit line-coverage floor (only the live-URLSession default is uncovered)
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Swift version
+        run: swift --version
+
+      # The whisper + llama binary XCFrameworks (~400 MB) are fetched during resolution; cache them.
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build (whole app compiles)
+        run: swift build
+
+      - name: Test (instrumented for coverage)
+        run: |
+          set -euo pipefail
+          rm -rf cov && mkdir -p cov
+          swift build --product DictidyTests \
+            -Xswiftc -profile-generate -Xswiftc -profile-coverage-mapping
+          LLVM_PROFILE_FILE="$PWD/cov/rdb.%p.profraw" .build/debug/DictidyTests
+
+      - name: Coverage gate (DictidyKit)
+        run: |
+          set -euo pipefail
+          xcrun llvm-profdata merge -sparse cov/*.profraw -o cov/merged.profdata
+          {
+            echo '### DictidyKit coverage'
+            echo '```'
+            xcrun llvm-cov report .build/debug/DictidyTests \
+              -instr-profile=cov/merged.profdata Sources/DictidyKit/*.swift \
+              | sed 's#.*/Sources/#Sources/#'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          pct=$(xcrun llvm-cov export .build/debug/DictidyTests \
+                  -instr-profile=cov/merged.profdata -summary-only Sources/DictidyKit/*.swift \
+                | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"][0]["totals"]["lines"]["percent"])')
+          printf 'DictidyKit line coverage: %.2f%% (floor %s%%)\n' "$pct" "$COVERAGE_MIN"
+          awk -v p="$pct" -v m="$COVERAGE_MIN" 'BEGIN { exit !(p + 0 >= m + 0) }' \
+            || { echo "::error::DictidyKit coverage ${pct}% is below the ${COVERAGE_MIN}% floor"; exit 1; }
