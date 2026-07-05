@@ -46,6 +46,14 @@ final class AppState: ObservableObject {
     @Published var selectedModelID: String = "" {
         didSet { defaults.set(selectedModelID, forKey: Keys.selectedModel); updateSetupPulse() }
     }
+    /// The shared **base** system prompt, composed in front of every instruction's style prompt at
+    /// rewrite time. It carries the output mechanics (return only the rewritten text, treat the input as
+    /// material, never use dashes, preserve meaning and language) so each instruction is purely style.
+    /// Editable in Settings; `resetBaseSystemPrompt()` restores the default.
+    @Published var baseSystemPrompt: String = Instruction.baseSystemPromptDefault {
+        didSet { defaults.set(baseSystemPrompt, forKey: Keys.baseSystemPrompt) }
+    }
+
     /// The primary backend for rewrites. Anthropic by default; `local` uses the on-device model.
     @Published var rewriteProvider: RewriteProvider = .anthropic {
         didSet { defaults.set(rewriteProvider.rawValue, forKey: Keys.rewriteProvider); updateSetupPulse() }
@@ -131,6 +139,7 @@ final class AppState: ObservableObject {
         static let keepHistory = "keepHistory"
         static let playDictationTones = "playDictationTones"
         static let dictationCleanupInstruction = "dictationCleanupInstruction"
+        static let baseSystemPrompt = "baseSystemPrompt"
     }
 
     init() {
@@ -293,7 +302,7 @@ final class AppState: ObservableObject {
             if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
             do {
                 let (result, modelName) = try await generate(with: provider, text: text,
-                                                             systemPrompt: instruction.systemPrompt)
+                                                             systemPrompt: Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt))
                 recordHistory(before: before, after: result, instructionName: instruction.name,
                               model: modelName, kind: kind)
                 await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
@@ -355,7 +364,7 @@ final class AppState: ObservableObject {
             if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
             do {
                 let (result, modelName) = try await generate(with: provider, text: text,
-                                                             systemPrompt: instruction.systemPrompt)
+                                                             systemPrompt: Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt))
                 recordHistory(before: text, after: result, instructionName: instruction.name,
                               model: modelName, kind: .rewrite)
                 copyToClipboard(result)
@@ -726,10 +735,13 @@ final class AppState: ObservableObject {
         } else if let data = defaults.data(forKey: Keys.instructions),
                   let list = try? JSONDecoder().decode([Instruction].self, from: data) {
             instructions = list
-            migrateAutoCleanIfNeeded()
+            migrateDefaultInstructionsIfNeeded()
         } else {
             instructions = Instruction.defaults
         }
+
+        // The shared base prompt (mechanics). Falls back to the shipped default for existing installs.
+        baseSystemPrompt = defaults.string(forKey: Keys.baseSystemPrompt) ?? Instruction.baseSystemPromptDefault
 
         selectedModelID = defaults.string(forKey: Keys.selectedModel) ?? ""
         if let raw = defaults.string(forKey: Keys.rewriteProvider), let p = RewriteProvider(rawValue: raw) {
@@ -751,16 +763,22 @@ final class AppState: ObservableObject {
         modelsLastFetched = defaults.object(forKey: Keys.modelsFetched) as? Date
     }
 
-    /// Bring an *unedited* Auto Clean instruction up to the current default so the strengthened wording
-    /// reaches existing installs, not just fresh ones. A prompt the user has customized (anything other
-    /// than the exact previous default) is left untouched.
-    private func migrateAutoCleanIfNeeded() {
-        guard let index = instructions.firstIndex(where: {
-            $0.systemPrompt == Instruction.legacyAutoCleanPrompt
-        }) else { return }
-        instructions[index].systemPrompt = Instruction.autoCleanPrompt
-        persistInstructions()
+    /// Bring *unedited* seeded instructions up to the current style-only defaults so the new wording
+    /// (and the shared base prompt) reaches existing installs, not just fresh ones. Only prompts that
+    /// exactly match a previous default are upgraded. Anything the user has customized is left untouched.
+    private func migrateDefaultInstructionsIfNeeded() {
+        var changed = false
+        for i in instructions.indices {
+            if let upgraded = Instruction.legacyDefaultPromptMigrations[instructions[i].systemPrompt] {
+                instructions[i].systemPrompt = upgraded
+                changed = true
+            }
+        }
+        if changed { persistInstructions() }
     }
+
+    /// Restores the base system prompt to its shipped default.
+    func resetBaseSystemPrompt() { baseSystemPrompt = Instruction.baseSystemPromptDefault }
 
     private func persistInstructions() {
         if let data = try? JSONEncoder().encode(instructions) {

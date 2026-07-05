@@ -11,10 +11,13 @@ struct InstructionsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Each instruction appears in the menu bar and can have its own global shortcut. The "
-                 + "system prompt tells the model how to rewrite the selected text. Unlimited, free.")
+            Text("Each instruction appears in the menu bar and can have its own global shortcut. Its "
+                 + "prompt describes only the style to apply. The base instructions below are added in "
+                 + "front of every rewrite. Unlimited, free.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            baseInstructions
 
             HSplitView {
                 master.frame(minWidth: 200, idealWidth: 230, maxWidth: 320)
@@ -23,6 +26,31 @@ struct InstructionsTab: View {
             .frame(maxHeight: .infinity)
         }
         .padding()
+    }
+
+    // MARK: - Base instructions (shared foundation)
+
+    private var baseInstructions: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("These apply to every rewrite, so each instruction is just the style on top. This is "
+                     + "where the basics live, like returning only the rewritten text and never using dashes.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                TextEditor(text: $state.baseSystemPrompt)
+                    .font(.body).frame(minHeight: 120)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                HStack {
+                    Spacer()
+                    Button("Reset to default") { state.resetBaseSystemPrompt() }
+                        .disabled(state.baseSystemPrompt == Instruction.baseSystemPromptDefault)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Text("Base instructions (applied to every rewrite)")
+                .font(.subheadline).fontWeight(.medium)
+        }
     }
 
     // MARK: - Master (list + add/duplicate)
@@ -81,7 +109,7 @@ struct InstructionsTab: View {
                         .textFieldStyle(.roundedBorder).font(.headline)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("System prompt").font(.subheadline).foregroundStyle(.secondary)
+                        Text("Style").font(.subheadline).foregroundStyle(.secondary)
                         TextEditor(text: binding.systemPrompt)
                             .font(.body).frame(minHeight: 140)
                             .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
@@ -118,7 +146,8 @@ struct InstructionsTab: View {
     private func addNew() {
         let instruction = Instruction(
             name: "New Instruction",
-            systemPrompt: "Rewrite the text. Output only the rewritten text, with no preamble or explanation."
+            // Style only. The base instructions supply the output mechanics.
+            systemPrompt: "Apply this style. Rewrite the text to be clear and concise."
         )
         state.addInstruction(instruction)
         selection = instruction.id
