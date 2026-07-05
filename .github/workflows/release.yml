@@ -61,6 +61,11 @@ jobs:
           SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
+          # Stable-named copy (byte-identical) so the website can link to a permanent,
+          # always-latest direct download that needs no JS or GitHub API:
+          # https://github.com/danb235/dictidy/releases/latest/download/Dictidy-macOS.zip
+          cp "$ZIP" Dictidy-macOS.zip
+
           # Release body = this version's CHANGELOG section + install steps + checksum.
           {
             awk -v v="$VERSION" '
@@ -85,6 +90,11 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP }}
+          # Versioned zip first so the in-app updater (picks the first .zip asset) and the
+          # changelog checksum both reference it; the stable-named copy is a permanent
+          # website download link.
+          files: |
+            ${{ env.ZIP }}
+            Dictidy-macOS.zip
           body_path: RELEASE_NOTES.md
           fail_on_unmatched_files: true
