@@ -9,6 +9,23 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-05
+
+### Added
+- **App icon.** Dictidy now has a proper icon (the equalizer logo) in Finder, the app switcher, and
+  when you drag it to Applications, in place of the generic blank icon.
+
+### Changed
+- **Reworked onboarding.** Dictation and rewriting are now set up as equal, first-class features. Each
+  has its own step (Dictation, then Rewrite), followed by a single Permissions step. Nothing is labelled
+  "optional": you turn a feature on, download its model right there, and continue once it is ready.
+- **Editable base instructions, style-only modes.** A new base prompt holds the shared rules that every
+  rewrite follows (return only the rewritten text, never use dashes, keep the meaning and language), so
+  each instruction is now just its style. Auto Clean, Formal, Friendly, and Translate to English are
+  rewritten as detailed, style-only prompts, with Formal, Friendly, and Translate now as thorough as
+  Auto Clean. Edit the base under Settings, Instructions. Instructions you have customized are left
+  untouched; unedited built-in ones update automatically.
+
 ## [1.0.0] - 2026-07-04
 
 Initial release.
