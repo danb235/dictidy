@@ -9,6 +9,17 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-06
+
+### Fixed
+- **Fixed a crash when setting dictation shortcuts.** Opening the shortcut recorder (Reconfigure in
+  Settings, Dictation, and the per-instruction shortcut fields) crashed the app because a bundled
+  resource was missing from the packaged app. The app now includes it, so recording shortcuts works.
+
+### Changed
+- **Default dictation shortcuts.** When you set up dictation, Dictate + Clean is now bound to
+  Control-Space and raw Dictate to Option-Space by default. You can change both in Settings, Dictation.
+
 ## [1.1.0] - 2026-07-05
 
 ### Added
