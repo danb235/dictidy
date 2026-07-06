@@ -329,6 +329,9 @@ It exits non-zero on any failure, and runs on every push via GitHub Actions ([CI
 
 ## Uninstall
 
+For a complete reset, you can run `./Scripts/uninstall.sh` from a source checkout. Use
+`./Scripts/uninstall.sh --dry-run` first to see exactly what it will remove.
+
 1. **Quit** Dictidy (menu bar → **Quit Dictidy**). If **Launch at login** is on, turn it off first
    (Settings → **General**) so no login item is left behind.
 2. **Delete the app:**

@@ -9,6 +9,17 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **Complete uninstall script.** `./Scripts/uninstall.sh` removes the installed app, stored models,
+  history, settings, caches, Keychain API key, and macOS permission grants so development builds can
+  exercise first-run onboarding from a clean state.
+
+### Fixed
+- **Actually fixed the shortcut recorder crash in signed app bundles.** The 1.1.1 package included
+  KeyboardShortcuts' resource bundle, but SwiftPM's generated lookup still expected it at the app
+  bundle root, which macOS code signing does not allow. The recorder now resolves the bundled strings
+  from `Contents/Resources`, so opening Settings → Instructions no longer traps.
+
 ## [1.1.1] - 2026-07-06
 
 ### Fixed

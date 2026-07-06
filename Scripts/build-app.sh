@@ -7,6 +7,21 @@ CONFIG="${1:-release}"
 APP_NAME="Dictidy"
 APP_DIR="$APP_NAME.app"
 
+echo "==> Resolving packages..."
+swift package resolve
+
+# KeyboardShortcuts 1.15.0 localizes its recorder UI via Bundle.module. SwiftPM's generated
+# resource accessor looks beside Bundle.main.bundleURL, which is `Dictidy.app` for our hand-assembled
+# app bundle. macOS code signing rejects arbitrary files in the app root, so teach the package checkout
+# to prefer the conventional signed-app resource location (`Contents/Resources`) before falling back to
+# SwiftPM's generated `.module` bundle for unbundled/dev runs.
+KS_UTILITIES=".build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
+if [ -f "$KS_UTILITIES" ] && ! grep -q "dictidyKeyboardShortcutsLocalizationBundle" "$KS_UTILITIES"; then
+    echo "==> Patching KeyboardShortcuts resource lookup for app bundle..."
+    perl -0pi -e 's#import Carbon\.HIToolbox\nimport SwiftUI#import Carbon.HIToolbox\nimport SwiftUI\n\nprivate let dictidyKeyboardShortcutsLocalizationBundle: Bundle = {\n\tif let url = Bundle.main.url(forResource: "KeyboardShortcuts_KeyboardShortcuts", withExtension: "bundle"),\n\t   let bundle = Bundle(url: url) {\n\t\treturn bundle\n\t}\n\n\treturn .module\n}()#' "$KS_UTILITIES"
+    perl -0pi -e 's#NSLocalizedString\(self, bundle: \.module, comment: self\)#NSLocalizedString(self, bundle: dictidyKeyboardShortcutsLocalizationBundle, comment: self)#' "$KS_UTILITIES"
+fi
+
 # Host-arch build (arm64 on Apple Silicon). Universal (--arch arm64 --arch x86_64) is intentionally
 # NOT used: it requires full Xcode's XCBuild, which the Command Line Tools lack, and Dictidy targets
 # Apple Silicon (Metal-accelerated whisper/llama). The CI release runner is arm64, so releases are arm64.
@@ -28,12 +43,13 @@ cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"   # the equalizer logo (CFBundleIconFile)
 
-# SwiftPM resource bundles (e.g. KeyboardShortcuts's localizations). SwiftPM packages with resources
-# expose them via `Bundle.module`, which looks in the app's Contents/Resources. Assembling the .app by
-# hand does NOT copy these, so without this every KeyboardShortcuts.Recorder crashes (Bundle.module
-# traps when it can't find the bundle). Copy any *.bundle from the build dir into Resources.
+# SwiftPM resource bundles (e.g. KeyboardShortcuts's localizations). Assembling the .app by hand does
+# NOT copy these, so copy any *.bundle from the build dir into the signed app's conventional resource
+# location. The dependency patch above makes KeyboardShortcuts prefer this location at runtime.
 for _rb in "$BIN_DIR"/*.bundle; do
-    [ -e "$_rb" ] && cp -R "$_rb" "$APP_DIR/Contents/Resources/"
+    if [ -e "$_rb" ]; then
+        cp -R "$_rb" "$APP_DIR/Contents/Resources/"
+    fi
 done
 
 # Stamp the release version into the bundle (the release workflow sets DICTIDY_VERSION from the tag).
