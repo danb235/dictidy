@@ -35,8 +35,10 @@ final class OnboardingModel: ObservableObject {
         static let useLocal = "onboarding.rewriteUseLocal"
     }
 
-    /// The dictation shortcut seeded on finish if the user enables dictation and hasn't set one.
-    static let defaultDictateShortcut = "⌃⌥D"
+    /// Default dictation shortcuts seeded on finish if the user enables dictation and hasn't set them:
+    /// Dictate + Clean on Control-Space, raw Dictate on Option-Space.
+    static let defaultDictateCleanShortcut = "⌃Space"
+    static let defaultDictateShortcut = "⌥Space"
 
     @Published var index = 0 { didSet { defaults.set(index, forKey: Keys.index) } }
 
@@ -100,7 +102,9 @@ final class OnboardingModel: ObservableObject {
             let bound = KeyboardShortcuts.getShortcut(for: dictate) != nil
                 || KeyboardShortcuts.getShortcut(for: dictateClean) != nil
             if !bound {
-                KeyboardShortcuts.setShortcut(.init(.d, modifiers: [.control, .option]), for: dictateClean)
+                // Dictate + Clean on Control-Space; raw Dictate on Option-Space.
+                KeyboardShortcuts.setShortcut(.init(.space, modifiers: [.control]), for: dictateClean)
+                KeyboardShortcuts.setShortcut(.init(.space, modifiers: [.option]), for: dictate)
             }
         } else {
             KeyboardShortcuts.setShortcut(nil, for: dictate)
@@ -230,7 +234,7 @@ private struct DictationStep: View {
                             sizeNote: "Whisper large-v3-turbo · about 1.6 GB · a one-time download that runs on your Mac",
                             download: { state.modelStore.download() },
                             cancel:   { state.modelStore.cancel() })
-                Text("Dictation runs on \(OnboardingModel.defaultDictateShortcut) by default. You can change it anytime in Settings, under Dictation.")
+                Text("Dictate and Clean runs on \(OnboardingModel.defaultDictateCleanShortcut), and raw Dictate on \(OnboardingModel.defaultDictateShortcut). You can change both in Settings, under Dictation.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Dictation stays off for now. It is a core part of Dictidy, and you can turn it on anytime in Settings.")
@@ -383,7 +387,7 @@ private struct DoneStep: View {
     private var dictationShortcut: String {
         state.shortcutDescription(forName: ShortcutsRegistry.dictateAndCleanName)
             ?? state.shortcutDescription(forName: ShortcutsRegistry.dictateName)
-            ?? OnboardingModel.defaultDictateShortcut
+            ?? OnboardingModel.defaultDictateCleanShortcut
     }
 
     private var rewriteDetail: String {

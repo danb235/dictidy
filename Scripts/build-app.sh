@@ -28,6 +28,14 @@ cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"   # the equalizer logo (CFBundleIconFile)
 
+# SwiftPM resource bundles (e.g. KeyboardShortcuts's localizations). SwiftPM packages with resources
+# expose them via `Bundle.module`, which looks in the app's Contents/Resources. Assembling the .app by
+# hand does NOT copy these, so without this every KeyboardShortcuts.Recorder crashes (Bundle.module
+# traps when it can't find the bundle). Copy any *.bundle from the build dir into Resources.
+for _rb in "$BIN_DIR"/*.bundle; do
+    [ -e "$_rb" ] && cp -R "$_rb" "$APP_DIR/Contents/Resources/"
+done
+
 # Stamp the release version into the bundle (the release workflow sets DICTIDY_VERSION from the tag).
 if [ -n "${DICTIDY_VERSION:-}" ]; then
     echo "==> Stamping version ${DICTIDY_VERSION}..."
