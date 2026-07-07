@@ -15,7 +15,17 @@ const server = http.createServer((req, res) => {
 });
 await new Promise(r => server.listen(0, r));
 const port = server.address().port;
-const browser = await chromium.launch();
+
+async function launchBrowser() {
+  try {
+    return await chromium.launch();
+  } catch (error) {
+    if (!/Executable doesn't exist|browserType\.launch/i.test(String(error?.message || error))) throw error;
+    return chromium.launch({ channel: 'chrome' });
+  }
+}
+
+const browser = await launchBrowser();
 const page = await browser.newPage();
 const logs = [];
 page.on('console', m => { if (m.type() === 'error') logs.push('console.error: ' + m.text()); });

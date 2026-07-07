@@ -64,7 +64,16 @@ const server = serve(siteDir);
 await new Promise(r => server.listen(0, r));
 const port = server.address().port;
 
-const browser = await chromium.launch();
+async function launchBrowser() {
+  try {
+    return await chromium.launch();
+  } catch (error) {
+    if (!/Executable doesn't exist|browserType\.launch/i.test(String(error?.message || error))) throw error;
+    return chromium.launch({ channel: 'chrome' });
+  }
+}
+
+const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => {
@@ -131,7 +140,7 @@ let content = extracted.html
 
 // ---- structured data --------------------------------------------------------
 const version = await latestVersion();
-const description = 'Dictidy is a free, open-source macOS app that turns your voice into clean, finished text anywhere you type, and rewrites text you have already written, all from one keyboard shortcut. Dictation runs on-device with Whisper; cleanup runs on-device or with your own Claude API key.';
+const description = 'Dictidy is a free, open-source macOS app that turns rambling speech into polished text wherever you type. Dictation runs on-device with Whisper, cleanup runs locally or with your own Claude API key, and existing text can be cleaned in place.';
 
 const softwareApp = {
   '@context': 'https://schema.org',
