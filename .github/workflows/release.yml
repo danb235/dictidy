@@ -24,7 +24,13 @@ jobs:
           restore-keys: spm-${{ runner.os }}-
 
       - name: Test before releasing
-        run: swift run DictidyTests
+        # Build and execute separately so the SwiftPM driver does not remain resident alongside the
+        # test process. `swift run` pushed the macOS runner over its memory limit after resolving the
+        # large whisper/llama binary artifacts, even though the test executable built successfully.
+        run: |
+          set -euo pipefail
+          swift build --product DictidyTests
+          .build/debug/DictidyTests
 
       # Optional: sign releases with a stable self-signed identity so macOS keeps the app's
       # Accessibility/Keychain grants across upgrades (and the in-app updater can verify a
