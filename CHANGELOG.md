@@ -9,6 +9,8 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-22
+
 ### Added
 - **Cancel dictation and rewrites with Escape.** Press Escape while recording, transcribing, or
   rewriting to discard the in-flight text. The menu-bar icon briefly flashes an X to confirm the
