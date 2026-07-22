@@ -25,7 +25,14 @@ final class AppState: ObservableObject {
     @Published var isWorking: Bool = false {
         didSet {
             guard isWorking != oldValue else { return }
-            if isWorking { cancelErrorFlash(); startSpinner() } else { stopSpinner() }
+            if isWorking {
+                cancelErrorFlash()
+                cancelCancellationFlash()
+                startSpinner()
+            } else {
+                stopSpinner()
+            }
+            updateEscapeMonitoring()
             updateSetupPulse()
         }
     }
@@ -37,6 +44,8 @@ final class AppState: ObservableObject {
     /// When true, the menu-bar icon briefly shows the `nosign` glyph to signal a
     /// no-selection failure — a lightweight, non-modal alternative to the alert.
     @Published var showErrorFlash: Bool = false
+    /// Brief X glyph shown after Escape cancels recording, transcription, or rewriting.
+    @Published var showCancellationFlash: Bool = false
     /// Live Accessibility-permission state. macOS posts no reliable change event, so we poll —
     /// but only while it's missing (see `startPermissionMonitorIfNeeded`), never once granted.
     @Published var accessibilityTrusted: Bool = AccessibilityPermissions.isTrusted { didSet { updateSetupPulse() } }
@@ -78,7 +87,14 @@ final class AppState: ObservableObject {
     @Published var isRecording: Bool = false {
         didSet {
             guard isRecording != oldValue else { return }
-            if isRecording { cancelErrorFlash(); startRecordingAnimation() } else { stopRecordingAnimation() }
+            if isRecording {
+                cancelErrorFlash()
+                cancelCancellationFlash()
+                startRecordingAnimation()
+            } else {
+                stopRecordingAnimation()
+            }
+            updateEscapeMonitoring()
             updateSetupPulse()
         }
     }
@@ -97,6 +113,7 @@ final class AppState: ObservableObject {
     let modelStore = WhisperModelStore()
     let localModelStore = LocalLLMModelStore()
     private let registry = ShortcutsRegistry()
+    private let escapeKeyMonitor = EscapeKeyMonitor()
     private let defaults = UserDefaults.standard
     /// In-memory copy of the API key, read from the Keychain lazily on first use and cached for
     /// the app's lifetime. Reading the Keychain triggers a macOS authorization prompt, so we do
@@ -106,6 +123,11 @@ final class AppState: ObservableObject {
     private var setupTask: Task<Void, Never>?
     private var permissionTask: Task<Void, Never>?
     private var flashTask: Task<Void, Never>?
+    private var cancellationFlashTask: Task<Void, Never>?
+    /// The current transcription/rewrite task. Retaining it lets Escape cancel network requests and
+    /// ensures slower on-device work cannot paste a late result after the UI has returned to idle.
+    private var processingTask: Task<Void, Never>?
+    private var processingID: UUID?
     /// Rolling streak of consecutive no-selection failures; drives escalation to the modal.
     private var noSelectionFailureCount = 0
     private var lastNoSelectionFailure: Date?
@@ -147,9 +169,11 @@ final class AppState: ObservableObject {
         hasAPIKey = KeychainService.exists() // existence check — doesn't read the secret, so no prompt at launch
         launchAtLogin = LaunchAtLogin.isEnabled
 
+        escapeKeyMonitor.onEscape = { [weak self] in self?.cancelActiveOperation() }
+
         registry.onTrigger = { [weak self] id in
             guard let self, let instruction = self.instructions.first(where: { $0.id == id }) else { return }
-            Task { await self.runRewrite(instruction: instruction) }
+            self.runRewrite(instruction: instruction)
         }
         registry.sync(instructions)
         registry.onDictate = { [weak self] in self?.toggleDictation(mode: .raw) }
@@ -256,7 +280,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Rewrite flow
 
-    func runRewrite(instruction: Instruction) async {
+    func runRewrite(instruction: Instruction) {
         guard !isWorking, !isRecording else { return }
 
         let order = effectiveProviderOrder()
@@ -273,21 +297,29 @@ final class AppState: ObservableObject {
             return
         }
 
-        isWorking = true
-        statusMessage = "Rewriting…"
-
-        guard let selection = await RewriteService.shared.captureSelection() else {
-            isWorking = false
-            statusMessage = nil
-            handleNoSelection()
-            return
+        let id = beginProcessing(status: "Rewriting…")
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishProcessing(id: id) }
+            do {
+                guard let selection = try await RewriteService.shared.captureSelection() else {
+                    guard self.processingIsCurrent(id) else { return }
+                    self.handleNoSelection()
+                    return
+                }
+                guard self.processingIsCurrent(id) else { return }
+                await self.performRewrite(order: order, text: selection, instruction: instruction,
+                                          before: selection, kind: .rewrite, processingID: id)
+                guard self.processingIsCurrent(id) else { return }
+                self.noSelectionFailureCount = 0
+                self.lastNoSelectionFailure = nil
+            } catch is CancellationError {
+                // Escape already reset the UI and flashed the acknowledgement glyph.
+            } catch {
+                guard self.processingIsCurrent(id) else { return }
+                self.notify(error.localizedDescription)
+            }
         }
-
-        await performRewrite(order: order, text: selection, instruction: instruction, before: selection, kind: .rewrite)
-        noSelectionFailureCount = 0
-        lastNoSelectionFailure = nil
-        isWorking = false
-        statusMessage = nil
     }
 
     /// Runs `text` through the providers in `order` (primary, then fallback), records history
@@ -296,23 +328,28 @@ final class AppState: ObservableObject {
     /// `shouldFallback`); a genuine request/content error surfaces instead. Notifies once, only if
     /// the whole order fails. Caller owns isWorking. Shared by the selection rewrite and Dictate + Clean.
     private func performRewrite(order: [RewriteProvider], text: String, instruction: Instruction,
-                                before: String, kind: HistoryKind) async {
+                                before: String, kind: HistoryKind, processingID: UUID) async {
         var lastError: Error?
         for (index, provider) in order.enumerated() {
+            guard processingIsCurrent(processingID) else { return }
             if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
             do {
                 let (result, modelName) = try await generate(with: provider, text: text,
                                                              systemPrompt: Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt))
+                guard processingIsCurrent(processingID) else { return }
+                try await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
+                guard processingIsCurrent(processingID) else { return }
                 recordHistory(before: before, after: result, instructionName: instruction.name,
                               model: modelName, kind: kind)
-                await RewriteService.shared.paste(result, restoreClipboard: restoreClipboard)
                 scheduleIdleUnload()
                 return
             } catch {
+                guard processingIsCurrent(processingID) else { return }
                 lastError = error
                 if !shouldFallback(after: error) { break }   // request/content error → surface it
             }
         }
+        guard processingIsCurrent(processingID) else { return }
         notify(lastError?.localizedDescription ?? "The rewrite failed.")
     }
 
@@ -349,7 +386,7 @@ final class AppState: ObservableObject {
     /// result (so it appears at the top of History), and copy it to the clipboard. Unlike
     /// `performRewrite` it does not paste — it's invoked from the History window, where there's no
     /// text cursor to paste into.
-    func rewriteAgain(_ text: String, instruction: Instruction) async {
+    func rewriteAgain(_ text: String, instruction: Instruction) {
         guard !isWorking, !isRecording, !text.isEmpty else { return }
         let order = effectiveProviderOrder()
         guard !order.isEmpty else {
@@ -357,29 +394,34 @@ final class AppState: ObservableObject {
             notify("Set up a rewrite provider first — Settings → Rewrite.")
             return
         }
-        isWorking = true
-        statusMessage = "Rewriting…"
-        var lastError: Error?
-        for (index, provider) in order.enumerated() {
-            if index > 0 { statusMessage = "Falling back to \(provider.displayName)…" }
-            do {
-                let (result, modelName) = try await generate(with: provider, text: text,
-                                                             systemPrompt: Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt))
-                recordHistory(before: text, after: result, instructionName: instruction.name,
-                              model: modelName, kind: .rewrite)
-                copyToClipboard(result)
-                scheduleIdleUnload()
-                isWorking = false
-                statusMessage = nil
-                return
-            } catch {
-                lastError = error
-                if !shouldFallback(after: error) { break }
+        let id = beginProcessing(status: "Rewriting…")
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishProcessing(id: id) }
+            var lastError: Error?
+            for (index, provider) in order.enumerated() {
+                guard self.processingIsCurrent(id) else { return }
+                if index > 0 { self.statusMessage = "Falling back to \(provider.displayName)…" }
+                do {
+                    let (result, modelName) = try await self.generate(
+                        with: provider, text: text,
+                        systemPrompt: Instruction.composeSystemPrompt(base: self.baseSystemPrompt,
+                                                                       style: instruction.systemPrompt))
+                    guard self.processingIsCurrent(id) else { return }
+                    self.recordHistory(before: text, after: result, instructionName: instruction.name,
+                                       model: modelName, kind: .rewrite)
+                    self.copyToClipboard(result)
+                    self.scheduleIdleUnload()
+                    return
+                } catch {
+                    guard self.processingIsCurrent(id) else { return }
+                    lastError = error
+                    if !self.shouldFallback(after: error) { break }
+                }
             }
+            guard self.processingIsCurrent(id) else { return }
+            self.notify(lastError?.localizedDescription ?? "The rewrite failed.")
         }
-        isWorking = false
-        statusMessage = nil
-        notify(lastError?.localizedDescription ?? "The rewrite failed.")
     }
 
     /// Builds (once) and returns the local LLM engine from the downloaded model. The ~2.5 GB load
@@ -408,6 +450,65 @@ final class AppState: ObservableObject {
             self.localEngine = nil
             self.whisperEngine = nil
             self.idleUnloadTask = nil
+        }
+    }
+
+    // MARK: - Processing cancellation
+
+    /// Starts one cancellable transcription/rewrite operation and returns the identity used to
+    /// prevent a cancelled, slow on-device call from publishing a late result.
+    private func beginProcessing(status: String) -> UUID {
+        processingTask?.cancel()
+        let id = UUID()
+        processingID = id
+        statusMessage = status
+        isWorking = true
+        return id
+    }
+
+    private func processingIsCurrent(_ id: UUID) -> Bool {
+        processingID == id && !Task.isCancelled
+    }
+
+    private func finishProcessing(id: UUID) {
+        guard processingID == id else { return }
+        processingID = nil
+        processingTask = nil
+        statusMessage = nil
+        isWorking = false
+    }
+
+    /// Handles the global Escape key. Recording audio is discarded immediately; in-flight work is
+    /// cancelled and invalidated so even a synchronous C model call that is already running cannot
+    /// paste or save its result when it eventually returns.
+    private func cancelActiveOperation() {
+        guard isRecording || isWorking else { return }
+
+        if isRecording {
+            isRecording = false
+            stopWatchdog()
+            DictationService.shared.cancel()
+            dictationMode = nil
+            playTone(start: false)
+        }
+
+        if isWorking {
+            processingID = nil
+            processingTask?.cancel()
+            processingTask = nil
+            statusMessage = nil
+            isWorking = false
+        }
+
+        startCancellationFlash()
+    }
+
+    /// Observe Escape only while it has an in-scope action, avoiding a permanent keyboard monitor.
+    private func updateEscapeMonitoring() {
+        if isRecording || isWorking {
+            escapeKeyMonitor.start()
+        } else {
+            escapeKeyMonitor.stop()
         }
     }
 
@@ -482,40 +583,43 @@ final class AppState: ObservableObject {
         playTone(start: false)   // after the tap is removed, so the tone isn't captured into the audio
         guard !samples.isEmpty else { startErrorFlash(); return }   // no audio captured
 
-        isWorking = true
-        statusMessage = "Transcribing…"
-        Task {
+        dictationMode = nil
+        let id = beginProcessing(status: "Transcribing…")
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishProcessing(id: id) }
             do {
-                let engine = try await resolveEngine()
+                let engine = try await self.resolveEngine()
                 let transcript = try await engine.transcribe(samples)
+                guard self.processingIsCurrent(id) else { return }
                 switch mode {
                 case .raw:
-                    recordRawDictation(transcript: transcript)
-                    await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
-                    scheduleIdleUnload()
+                    try await RewriteService.shared.paste(transcript, restoreClipboard: self.restoreClipboard)
+                    guard self.processingIsCurrent(id) else { return }
+                    self.recordRawDictation(transcript: transcript)
+                    self.scheduleIdleUnload()
                 case .clean:
-                    let order = effectiveProviderOrder()
-                    if let instruction = dictationCleanupInstruction, !order.isEmpty {
-                        statusMessage = "Cleaning…"
-                        await performRewrite(order: order, text: transcript, instruction: instruction,
-                                             before: transcript, kind: .dictationClean)
+                    let order = self.effectiveProviderOrder()
+                    if let instruction = self.dictationCleanupInstruction, !order.isEmpty {
+                        self.statusMessage = "Cleaning…"
+                        await self.performRewrite(order: order, text: transcript, instruction: instruction,
+                                                  before: transcript, kind: .dictationClean, processingID: id)
                     } else {
                         // No cleanup instruction or no rewrite provider set up — paste the raw transcript.
-                        recordRawDictation(transcript: transcript)
-                        await RewriteService.shared.paste(transcript, restoreClipboard: restoreClipboard)
-                        scheduleIdleUnload()
+                        try await RewriteService.shared.paste(transcript, restoreClipboard: self.restoreClipboard)
+                        guard self.processingIsCurrent(id) else { return }
+                        self.recordRawDictation(transcript: transcript)
+                        self.scheduleIdleUnload()
                     }
                 }
-                isWorking = false
-                statusMessage = nil
             } catch WhisperEngine.EngineError.emptyTranscription {
-                isWorking = false
-                statusMessage = nil
-                startErrorFlash()   // silence / no speech — quiet feedback, no modal
+                guard self.processingIsCurrent(id) else { return }
+                self.startErrorFlash()   // silence / no speech — quiet feedback, no modal
+            } catch is CancellationError {
+                // Escape already reset the UI and flashed the acknowledgement glyph.
             } catch {
-                isWorking = false
-                statusMessage = nil
-                notify(error.localizedDescription)
+                guard self.processingIsCurrent(id) else { return }
+                self.notify(error.localizedDescription)
             }
         }
     }
@@ -867,6 +971,27 @@ final class AppState: ObservableObject {
         flashTask?.cancel()
         flashTask = nil
         showErrorFlash = false
+    }
+
+    // MARK: - Cancellation flash
+
+    /// Briefly swaps the menu-bar waveform for an X, confirming that Escape was received. Unlike an
+    /// error flash this is silent: cancellation is an intentional action, not a failure.
+    private func startCancellationFlash() {
+        cancellationFlashTask?.cancel()
+        showCancellationFlash = true
+        cancellationFlashTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 900_000_000) // ~0.9s
+            guard let self, !Task.isCancelled else { return }
+            self.showCancellationFlash = false
+            self.cancellationFlashTask = nil
+        }
+    }
+
+    private func cancelCancellationFlash() {
+        cancellationFlashTask?.cancel()
+        cancellationFlashTask = nil
+        showCancellationFlash = false
     }
 
     /// Escalating feedback for a "no text selected" trigger: a quiet beep+flash for isolated

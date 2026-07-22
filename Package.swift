@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "Dictidy",
     platforms: [
-        .macOS(.v13)
+        // The bundled whisper.cpp and llama.cpp frameworks require 13.3, matching Info.plist.
+        .macOS("13.3")
     ],
     dependencies: [
         // Pinned to 1.15.0: later versions use the SwiftUI `#Preview` macro, whose macro

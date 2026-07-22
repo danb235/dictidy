@@ -11,7 +11,7 @@ final class RewriteService {
     private init() {}
 
     /// Synthesizes ⌘C and returns the freshly-copied selection, or nil if nothing was selected.
-    func captureSelection() async -> String? {
+    func captureSelection() async throws -> String? {
         let pasteboard = NSPasteboard.general
         let startCount = pasteboard.changeCount
 
@@ -20,7 +20,7 @@ final class RewriteService {
         // Wait (briefly) for the copy to land on the pasteboard.
         let deadline = Date().addingTimeInterval(1.0)
         while pasteboard.changeCount == startCount && Date() < deadline {
-            try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
+            try await Task.sleep(nanoseconds: 30_000_000) // 30ms
         }
 
         guard pasteboard.changeCount != startCount else { return nil }
@@ -30,18 +30,29 @@ final class RewriteService {
 
     /// Writes `text` to the pasteboard and synthesizes ⌘V to paste it over the selection.
     /// Optionally restores the previous clipboard contents afterward.
-    func paste(_ text: String, restoreClipboard: Bool) async {
+    func paste(_ text: String, restoreClipboard: Bool) async throws {
         let pasteboard = NSPasteboard.general
         let previous = pasteboard.string(forType: .string)
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // Let the pasteboard write settle before pasting.
-        try? await Task.sleep(nanoseconds: 60_000_000) // 60ms
+        // Let the pasteboard write settle before pasting. If cancellation lands during this
+        // window, restore the original clipboard even when normal clipboard restoration is off:
+        // a cancelled operation must not leave behind text it never pasted.
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000) // 60ms
+            try Task.checkCancellation()
+        } catch {
+            pasteboard.clearContents()
+            if let previous { pasteboard.setString(previous, forType: .string) }
+            throw error
+        }
         postCommandKey(CGKeyCode(kVK_ANSI_V))
 
         if restoreClipboard {
+            // Once Cmd-V has been posted, finish the clipboard handoff even if cancellation arrives;
+            // restoring immediately can race the receiving app before it reads the pasteboard.
             try? await Task.sleep(nanoseconds: 300_000_000) // 300ms — let the paste complete
             pasteboard.clearContents()
             if let previous {

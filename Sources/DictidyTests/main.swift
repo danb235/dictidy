@@ -33,6 +33,7 @@ func checkThrows(_ name: String, _ body: () throws -> Void) {
 func data(_ s: String) -> Data { Data(s.utf8) }
 
 // Async helpers for the network-path tests (stub transport — no real network).
+@MainActor
 func checkAsync(_ name: String, _ body: () async throws -> Bool) async {
     total += 1
     do {
@@ -42,6 +43,7 @@ func checkAsync(_ name: String, _ body: () async throws -> Bool) async {
     }
 }
 
+@MainActor
 func expectAnthropicError(_ name: String, _ body: () async throws -> Void,
                           where predicate: (AnthropicError) -> Bool) async {
     total += 1

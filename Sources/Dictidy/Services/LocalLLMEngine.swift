@@ -71,6 +71,7 @@ actor LocalLLMEngine {
 
     /// Rewrites `text` under `systemPrompt` and returns the model's full response.
     func rewrite(text: String, systemPrompt: String) throws -> String {
+        try Task.checkCancellation()
         // Fresh KV cache per call so rewrites don't bleed into one another.
         llama_memory_clear(llama_get_memory(ctx), true)
 
@@ -97,6 +98,7 @@ actor LocalLLMEngine {
         var output = ""
         var generated = 0
         while generated < maxNew {
+            try Task.checkCancellation()
             var token = llama_sampler_sample(smpl, ctx, -1)
             if llama_vocab_is_eog(vocab, token) { break }
             output += piece(token)

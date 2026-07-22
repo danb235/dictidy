@@ -262,7 +262,7 @@ struct HistoryView: View {
         Menu {
             ForEach(state.instructions) { instruction in
                 Button(instruction.name) {
-                    Task { await state.rewriteAgain(source, instruction: instruction) }
+                    state.rewriteAgain(source, instruction: instruction)
                 }
             }
         } label: {

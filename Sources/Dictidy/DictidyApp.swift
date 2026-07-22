@@ -80,6 +80,7 @@ struct MenuBarLabel: View {
     private func iconState() -> (mode: WaveformIcon.Mode, frame: Int, label: String) {
         if state.isRecording { return (.recording, state.recordingFrame, "Recording") }
         if state.isWorking { return (.processing, state.spinnerFrame, "Working") }
+        if state.showCancellationFlash { return (.cancelled, 0, "Cancelled") }
         if state.showErrorFlash { return (.error, 0, "No text selected") }
         if state.needsSetup || state.dictationNeedsSetup { return (.setup, state.setupFrame, "Setup needed") }
         return (.idle, 0, "Dictidy")

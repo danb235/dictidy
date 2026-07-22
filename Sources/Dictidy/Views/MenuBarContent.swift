@@ -8,10 +8,10 @@ struct MenuBarContent: View {
 
     var body: some View {
         if state.isRecording {
-            Text("● Recording… — press the shortcut again to stop")
+            Text("● Recording… — press Esc to cancel")
             Divider()
         } else if state.isWorking {
-            Text(state.statusMessage ?? "Working…")
+            Text("\(state.statusMessage ?? "Working…") — press Esc to cancel")
             Divider()
         }
 
@@ -58,7 +58,7 @@ struct MenuBarContent: View {
             } else {
                 ForEach(state.instructions) { instruction in
                     Button(menuTitle(for: instruction)) {
-                        Task { await state.runRewrite(instruction: instruction) }
+                        state.runRewrite(instruction: instruction)
                     }
                     .disabled(state.isWorking)
                 }

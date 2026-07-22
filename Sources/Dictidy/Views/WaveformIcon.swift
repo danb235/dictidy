@@ -15,10 +15,10 @@ import SwiftUI
 ///         .frame(width: 18, height: 18)
 struct WaveformIcon: View {
 
-    enum Mode { case idle, recording, processing, error, setup }
+    enum Mode { case idle, recording, processing, cancelled, error, setup }
 
     var mode: Mode
-    /// Steps once per animation tick. Ignored by `.idle` and `.error`; drives the pulse
+    /// Steps once per animation tick. Ignored by `.idle`, `.cancelled`, and `.error`; drives the pulse
     /// for `.setup` and the motion for `.recording` / `.processing`.
     var frame: Int = 0
 
@@ -50,6 +50,16 @@ struct WaveformIcon: View {
                         .frame(width: barW, height: barHeight(i, side: side))
                         .opacity(barOpacity(i))
                 }
+            }
+        case .cancelled:
+            // A compact X acknowledges Escape without opening a window or playing an error sound.
+            ZStack {
+                Capsule()
+                    .frame(width: barW, height: side * 0.64)
+                    .rotationEffect(.degrees(45))
+                Capsule()
+                    .frame(width: barW, height: side * 0.64)
+                    .rotationEffect(.degrees(-45))
             }
         case .error:
             // Silence — every bar collapses to a flat, round-capped dot on the mid-line.
@@ -108,7 +118,7 @@ struct WaveformIcon: View {
 struct WaveformIcon_Previews: PreviewProvider {
     static var previews: some View {
         HStack(spacing: 22) {
-            ForEach([WaveformIcon.Mode.idle, .recording, .processing, .error, .setup], id: \.self) { m in
+            ForEach([WaveformIcon.Mode.idle, .recording, .processing, .cancelled, .error, .setup], id: \.self) { m in
                 WaveformIcon(mode: m, frame: 6).frame(width: 32, height: 32)
             }
         }
