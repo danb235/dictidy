@@ -11,11 +11,13 @@ The site is static HTML plus one shared stylesheet. Edit the HTML directly; ther
 - `privacy.html`, `terms.html`, `contact.html`: data handling, MIT license/use terms, verified project contact channels.
 - `404.html`: real missing-page handling; prevents Pages' default SPA fallback from returning the homepage for unknown paths.
 - `styles.css`, `favicon.svg`, `og-image.png`: shared assets. Social-card source lives in `site-build/social-card.svg`.
-- `_headers`, `_redirects`, `robots.txt`, `sitemap.xml`: hosting, canonical redirects, and discovery.
+- `_headers`, `robots.txt`, `sitemap.xml`: hosting headers and discovery. Hostname redirects are configured in Cloudflare zone-level Redirect Rules, outside the Pages deployment.
 
 Run `node site-build/verify.mjs`. Preview with `node site-build/serve.mjs` (default `http://127.0.0.1:4173`; set `DICTIDY_PREVIEW_PORT` if occupied). Check representative desktop and mobile layouts, keyboard navigation, FAQ disclosure, internal links, and no JavaScript errors. The verification script also runs before uploads and rejects hidden/development files, symlinks, and common credential patterns in `site/`.
 
 A same-repository PR produces a Cloudflare preview. Merge to `main` triggers production, subject to repository review and the production environment's required reviewer. Use the established review flow; do not weaken branch or environment protections. After deployment, verify apex HTTPS, HTTP/www redirects, 404 status, security headers, and the analytics beacon. The public download always points to the latest GitHub release rather than a hardcoded version.
+
+Cloudflare Pages `_redirects` supports path sources only; a source such as `https://www.dictidy.com/*` is ignored. The active zone-level Single Redirect is named `Dictidy www to apex`: match `(http.host eq "www.dictidy.com")`, target `concat("https://dictidy.com", http.request.uri.path)`, status 301, Preserve query string enabled. Follow [Cloudflare's www-to-apex guide](https://developers.cloudflare.com/pages/how-to/www-redirect/) and verify the actual HTTP status and `Location` header on both the root and a nested URL. Verified live on October 22, 2026: HTTP and HTTPS www requests redirect to the apex with the original path and query string; apex requests remain 200. Future `_redirects` files are allowed for path redirects, and the deploy verifier rejects domain sources.
 
 Keep API tokens only in GitHub environment secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Only `site/` is uploaded; `.env` files must never enter that directory. Production is restricted to `main`; preview secrets are withheld from fork PRs.
 
@@ -53,7 +55,7 @@ Duplicate checklist entries are combined below. These decisions cover the public
 | Frontend secrets / secure API keys / never hardcode secrets | No app/provider keys in website. App uses macOS Keychain. Hosting token stays in GitHub secrets. Deploy check rejects common key patterns. |
 | Hide all .env files | Added broad `.env`, credential and private-key ignores; deploy validation also rejects hidden files because ignored files can otherwise still be uploaded. |
 | Check Git history for secrets | Targeted scan of tracked files and reachable historical blobs, including the old compressed manifest, found no matching secrets. Pattern-based scan is not an exhaustive guarantee. |
-| Enforce HTTPS | Existing HTTP-to-HTTPS redirect verified; added one-year HSTS without preload/subdomain scope. Canonical www-to-apex redirect added. |
+| Enforce HTTPS | Existing HTTP-to-HTTPS redirect verified; added one-year HSTS without preload/subdomain scope. www-to-apex is enforced by an active Cloudflare Single Redirect; HTTP/HTTPS, root/nested paths and query preservation were verified. Pages `_redirects` cannot implement domain redirects. |
 | Security headers / restrict CORS | Strict CSP removes inline/eval/blob execution; denies frames, objects and forms; limits capabilities. Only the existing Cloudflare analytics origins are permitted. Public static files do not need private-API CORS rules; CORS is not authorization. |
 | Cookie consent banner | Omitted for current no-cookie/no-browser-storage analytics. No advertising pixels. Reassess actual legal/consent requirements before adding different tracking. |
 | Analytics installed | Existing Cloudflare-injected Web Analytics discovered and allowed by scoped CSP; policy discloses it. Use aggregate traffic/referrers/Core Web Vitals and GitHub release downloads. No custom click/session tracking or cookie identifiers. Dashboard receipt is an account-side check. |

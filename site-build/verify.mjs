@@ -16,6 +16,14 @@ for (const f of files) {
   if (!fs.statSync(full).isFile()) continue;
   const content = fs.readFileSync(full, 'utf8');
   assert(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\bsk-(?:ant-api\w*-|proj-)[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9]{30,}/.test(content), `Potential credential in ${f}`);
+  if (path.basename(f) === '_redirects') {
+    for (const [index, line] of content.split(/\r?\n/).entries()) {
+      const rule = line.trim();
+      if (!rule || rule.startsWith('#')) continue;
+      const source = rule.split(/\s+/)[0];
+      assert(/^\/(?!\/)/.test(source), `${f}:${index + 1}: redirect source must be a path; configure hostname redirects in Cloudflare account rules`);
+    }
+  }
 }
 const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*["']([^"']*)["']/g)].map(m => [m[1], m[2]]));
 for (const [f, html] of sources) {
