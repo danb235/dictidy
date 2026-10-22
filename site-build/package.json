@@ -1,13 +1,11 @@
 {
   "name": "dictidy-site-build",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Build tooling for the Dictidy marketing site (prerender for SEO/AI crawlers).",
+  "description": "Dependency-free validation and local preview for the static Dictidy website.",
   "scripts": {
-    "prerender": "node prerender.mjs"
-  },
-  "devDependencies": {
-    "playwright": "1.49.1"
+    "verify": "node verify.mjs",
+    "preview": "node serve.mjs"
   }
 }

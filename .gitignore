@@ -14,3 +14,15 @@ cov/
 
 # Internal marketing workspace (audit, strategy, drafts) — never published
 /marketing/
+
+# Local credentials and deployment state must never enter source control or site/.
+.env
+.env.*
+!.env.example
+!.env.sample
+.dev.vars
+.dev.vars.*
+.wrangler/
+*.p12
+*.pfx
+*.key

@@ -1,0 +1,2 @@
+# Keep the existing custom www domain canonical without affecting preview URLs.
+https://www.dictidy.com/* https://dictidy.com/:splat 301

@@ -11,9 +11,12 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/deploy-site.yml'
+      - 'site-build/verify.mjs'
   pull_request:
     paths:
       - 'site/**'
+      - 'site-build/verify.mjs'
+      - '.github/workflows/deploy-site.yml'
   workflow_dispatch: {}
 
 permissions:
@@ -36,6 +39,9 @@ jobs:
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Validate static site and deployment contents
+        run: node site-build/verify.mjs
 
       - name: Deploy to Cloudflare Pages
         id: deploy
