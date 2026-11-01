@@ -9,6 +9,10 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Fixed
+- **Limit local signing-key access.** New local signing identities trust `codesign` rather than
+  granting every application access to the private key without a warning.
+
 ## [2.2.0] - 2026-10-22
 
 ### Added

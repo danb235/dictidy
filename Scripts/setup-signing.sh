@@ -53,8 +53,8 @@ P12_PASS="dictidy-transport"
     -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES
 
 echo "==> Importing into your login keychain (so codesign can use it)..."
-# -A lets codesign use the key without a per-build keychain prompt.
-security import "$TMP/identity.p12" -k "$KEYCHAIN" -P "$P12_PASS" -A >/dev/null
+# Allow the signing tool to use this local key; do not grant access to every application.
+security import "$TMP/identity.p12" -k "$KEYCHAIN" -P "$P12_PASS" -T /usr/bin/codesign >/dev/null
 
 echo "OK: created signing identity '$IDENTITY_CN'."
 echo "    Now run ./Scripts/build-app.sh — it will sign with this identity automatically."
