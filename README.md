@@ -58,7 +58,8 @@ do not have to guess whether macOS permissions, keys, or model downloads worked.
 You can set up any mix of these:
 
 - **Rewriting:** add an Anthropic or OpenAI API key, or both. A single model menu lists available
-  text models from the providers you configure. Choose the model to use for every rewrite.
+  text models from the providers you configure. Choose a default model; individual instructions
+  can override it in **Settings -> Instructions**.
 - **Dictation:** download the Whisper model, grant Microphone access, and choose dictation shortcuts.
 
 Dictidy also needs **Accessibility** access so it can copy selected text and paste the result back into
@@ -85,7 +86,9 @@ You can reopen setup anytime from **Settings -> General -> Run Setup Again...**.
 4. Dictidy pastes the transcript at your cursor.
 
 **Dictate** pastes the raw transcript. **Dictate + Clean** transcribes locally, then cleans the text
-with the cleanup instruction's selected model.
+with the cleanup instruction's selected model. If cleanup has no instruction, or that instruction
+uses an unavailable default model, it pastes the raw transcript instead. An unavailable explicit
+model override blocks recording until you change it.
 
 ### Customize instructions
 
@@ -122,8 +125,9 @@ and choose **Paste Last Text**. It retries the latest rewrite or dictation at th
 generating again. The latest output is available until you quit Dictidy or clear history, including
 when history is turned off. Your clipboard restore setting also applies to this action.
 
-Open **History** from the menu to recover recent rewrites and dictations. History is local and capped
-to the newest 100 entries.
+Open **History** from the menu to recover recent rewrites and dictations. History is enabled by default,
+stored locally as plaintext JSON, and capped to the newest 100 entries. You can turn off saving new
+entries or clear existing history in **Settings -> General**.
 
 ---
 
@@ -160,18 +164,14 @@ to the newest 100 entries.
 
 ## How Dictidy Compares
 
-| | Dictidy | Wispr Flow | superwhisper | Apple Dictation |
-|---|---|---|---|---|
-| Price | Free | Free tier, Pro paid | Free tier, Pro paid | Free |
-| Open source | Yes | No | No | No |
-| Dictation on-device | Yes | No | Yes | Yes |
-| Cleanup | Your Anthropic or OpenAI key | Cloud | Cloud or your key | No |
-| Rewrite existing selected text | Yes | No | No | No |
-| Works across apps | Yes | Yes | Yes | Yes |
-| Telemetry | No | Yes | Optional | Optional |
+Dictidy combines free local dictation with configurable text rewriting on Apple Silicon Macs.
+Cleanup and rewriting use your own API key and are billed separately by Anthropic or OpenAI.
 
-Competitor details can change. This table reflects the project maintainer's understanding as of July
-2026.
+For dated comparisons and links to official product sources, see the
+[Wispr Flow comparison](https://dictidy.com/dictidy-vs-wispr-flow),
+[superwhisper comparison](https://dictidy.com/superwhisper-alternative), and
+[free Mac dictation guide](https://dictidy.com/best-free-dictation-app-mac).
+Check current features and plans before choosing an app.
 
 ---
 
@@ -181,21 +181,6 @@ Competitor details can change. This table reflects the project maintainer's unde
 
 Make sure Dictidy has **Accessibility** access, then quit and relaunch it. macOS often requires a
 relaunch before a new Accessibility grant applies.
-
-### Permissions look enabled, but Dictidy says they are missing
-
-macOS ties permissions to the app's code signature. If you switch between a release build and a source
-build, or rebuild without stable signing, macOS can show a stale enabled toggle.
-
-Reset and grant again:
-
-```sh
-tccutil reset Accessibility com.opensource.dictidy
-tccutil reset Microphone com.opensource.dictidy
-```
-
-Then launch Dictidy and follow setup again. If this happens on every source rebuild, run
-`./Scripts/setup-signing.sh` once before rebuilding.
 
 ### Dictidy cannot be opened
 
@@ -235,7 +220,8 @@ to the remote machine first.
 ## Build From Source
 
 This section is for contributors. If you only want to use Dictidy, install the prebuilt app above.
-Source builds do not receive in-app updates.
+Source builds also check for upstream releases. Installing an in-app update replaces your local
+app bundle with the published release; rebuild from source to keep using your own changes.
 
 ### Requirements
 

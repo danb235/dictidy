@@ -20,9 +20,8 @@ ideal place to start.
 ./Scripts/run.sh             # launches it
 ```
 
-See the README's [Build from source](README.md#build-from-source-contributors) section for the full
-walkthrough, and [self-signed certificate](README.md#why-the-self-signed-certificate) for why that
-first step matters (macOS ties Accessibility/Keychain grants to the code signature).
+See the README's [Build from source](README.md#build-from-source) section for the full walkthrough
+and signing explanation (macOS ties Accessibility/Keychain grants to the code signature).
 
 ## Tests & coverage
 
@@ -32,7 +31,7 @@ swift run DictidyTests
 
 Pure logic lives in the **`DictidyKit`** target and is unit-tested by the dependency-free runner in
 `Sources/DictidyTests/main.swift` (XCTest isn't usable under CLT-only). **CI enforces a coverage floor
-on `DictidyKit`** (currently ~99% lines). New pure logic belongs in `DictidyKit` with tests; keep it
+on `DictidyKit`** (currently 99% lines). New pure logic belongs in `DictidyKit` with tests; keep it
 covered. UI, permissions, audio, and the C-framework bindings live in the **`Dictidy`** app target and
 are verified by the build plus manual testing; don't try to unit-test SwiftUI/AppKit.
 
@@ -40,8 +39,9 @@ are verified by the build plus manual testing; don't try to unit-test SwiftUI/Ap
 
 - **`DictidyKit`**: pure, dependency-free logic (models, API parsing, provider selection, diffing).
   This is the unit-tested target and where testable logic should go.
-- **`Dictidy`**: the menu-bar app itself: SwiftUI views, permissions, hotkeys, dictation, and the
-  local LLM. Platform-bound, verified by building and manual testing.
+- **`Dictidy`**: the menu-bar app itself: SwiftUI views, permissions, hotkeys, dictation, and rewrite
+  orchestration. Speech transcription runs locally with Whisper; rewriting uses Anthropic or OpenAI.
+  Platform-bound, verified by building and manual testing.
 
 ## Code style
 
@@ -67,5 +67,4 @@ duplicates. Looking for somewhere to jump in? Browse the **`good first issue`** 
 
 ## Releasing
 
-Maintainers only, see the README's [Releasing](README.md#releasing-maintainers) section.
-</content>
+Maintainers only, see the README's [Releasing](README.md#releasing) section.

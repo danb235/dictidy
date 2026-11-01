@@ -19,7 +19,8 @@ What you expected, and what happened instead.
 **Environment**
 - macOS version:
 - Dictidy version (menu bar → Settings, or the release tag):
-- Rewrite provider: Claude API / Local (on-device) / both + fallback
+- Configured rewrite providers: Anthropic / OpenAI / both / none
+- Selected rewrite model (including any per-instruction override):
 - Using dictation? yes / no
 
 **Screenshots / logs**

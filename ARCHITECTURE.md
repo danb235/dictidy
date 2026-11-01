@@ -31,10 +31,11 @@ Sources/
 
 ## Key flows
 
-**Rewrite** (⇧⌘R or a menu instruction): `RewriteService` copies the selection (synthetic ⌘C) →
-`RewriteConfiguration` resolves the instruction's override or the default model, capturing the instruction,
-model, and combined prompt → `AppState.performRewrite` routes to that model's provider with its Keychain
-credential → the result is recorded to history and pasted (synthetic ⌘V, restoring the clipboard).
+**Rewrite** (⇧⌘R or a menu instruction): `RewriteConfiguration` resolves the instruction's override or
+the default model, capturing the instruction, model, and combined prompt → `RewriteService` copies the
+selection (synthetic ⌘C) → `AppState.performRewrite` routes to that model's provider with its Keychain
+credential → the result is retained for recovery, pasted (synthetic ⌘V, optionally restoring the clipboard),
+and recorded to history when enabled.
 Menu actions, shortcuts, History's Rewrite again, and Dictate + Clean share this resolution. Dictation
 captures the configuration before recording and preserves the transcript for recovery if cleanup fails.
 Unavailable overrides never switch models automatically.
@@ -61,7 +62,9 @@ its provider’s fixed HTTPS host.
 
 **Dictation** (tap a hotkey): `DictationService` captures mic audio as 16 kHz mono in memory →
 `WhisperEngine` transcribes on-device → the transcript is pasted (Dictate) or first cleaned through the
-rewrite provider (Dictate + Clean).
+rewrite provider (Dictate + Clean). If cleanup has no instruction, or that instruction uses an unavailable
+default model, Dictate + Clean pastes the raw transcript. An unavailable explicit model override blocks
+recording instead.
 
 ## Why the unusual build choices
 
