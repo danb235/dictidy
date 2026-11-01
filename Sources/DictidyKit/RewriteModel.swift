@@ -5,13 +5,18 @@ public struct RewriteModel: Identifiable, Codable, Equatable, Sendable {
     public let provider: RewriteProvider
     public let modelID: String
     public let displayName: String
-    public var id: String { provider.rawValue + ":" + modelID }
+    /// Subscription catalogs belong to one account registration, even when model slugs match.
+    public let connectionID: String?
+    public var id: String {
+        [provider.rawValue, connectionID, modelID].compactMap { $0 }.joined(separator: ":")
+    }
     public var label: String { provider.displayName + " · " + displayName }
 
-    public init(provider: RewriteProvider, modelID: String, displayName: String) {
+    public init(provider: RewriteProvider, modelID: String, displayName: String, connectionID: String? = nil) {
         self.provider = provider
         self.modelID = modelID
         self.displayName = displayName
+        self.connectionID = connectionID
     }
 
     public static func migratedSelection(saved: String?, legacyAnthropicID: String?) -> String {
@@ -25,6 +30,8 @@ public struct RewriteModel: Identifiable, Codable, Equatable, Sendable {
                                          configuredProviders: Set<RewriteProvider>) -> String {
         let usable = models.filter { configuredProviders.contains($0.provider) }
         if usable.contains(where: { $0.id == saved }) { return saved }
+        // Disconnecting a subscription must not silently select a separately billed API model.
+        if saved.hasPrefix("chatgpt:") { return saved }
         if let sonnet = usable.first(where: { $0.provider == .anthropic && $0.modelID.contains("sonnet") }) {
             return sonnet.id
         }

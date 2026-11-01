@@ -27,6 +27,7 @@ and signing explanation (macOS ties Accessibility/Keychain grants to the code si
 
 ```sh
 swift run DictidyTests
+./Scripts/test-chatgpt-platform.sh
 ```
 
 Pure logic lives in the **`DictidyKit`** target and is unit-tested by the dependency-free runner in
@@ -34,6 +35,10 @@ Pure logic lives in the **`DictidyKit`** target and is unit-tested by the depend
 on `DictidyKit`** (currently 99% lines). New pure logic belongs in `DictidyKit` with tests; keep it
 covered. UI, permissions, audio, and the C-framework bindings live in the **`Dictidy`** app target and
 are verified by the build plus manual testing; don't try to unit-test SwiftUI/AppKit.
+The ChatGPT platform checks in `Tests/ChatGPTPlatformTests.swift` exercise the native callback
+listener, identity signatures, and token renewal with synthetic credentials and an in-memory vault.
+They do not access your saved account. See [the acceptance checklist](docs/CHATGPT_TESTING.md) for
+manual subscription testing.
 
 ## Code layout
 

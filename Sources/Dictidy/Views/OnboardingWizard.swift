@@ -11,7 +11,7 @@ import DictidyKit
 //
 // Flow: Welcome → Dictation → Rewrite → Permissions → Done.
 //   • Dictation: enable, then download the speech model right there (Continue waits for it).
-//   • Rewrite: enable, then add an Anthropic or OpenAI API key and choose a model (Continue waits).
+//   • Rewrite: connect ChatGPT or add an API key, then choose a model (Continue waits).
 //   • Permissions: grant exactly what the enabled features need (Accessibility for either; Microphone
 //     for dictation). Every check is verified live — Continue stays disabled until it actually passes.
 //

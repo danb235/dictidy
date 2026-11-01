@@ -25,7 +25,7 @@ Sources/
   `RewriteService` (the ⌘C-capture / ⌘V-paste dance), `ShortcutsRegistry` (global hotkeys),
   `DictationService` (`AVAudioEngine` → 16 kHz mono), `WhisperEngine`/`WhisperModelStore`,
   `ModelStatus` (speech model download state), `LaunchAtLogin`,
-  and `Updater`.
+  `ChatGPTSignInService` / `ChatGPTCallbackServer` / `ChatGPTHTTP`, and `Updater`.
 - **`AppState`** owns published state, seeds defaults, drives the menu-bar icon animation counters,
   and orchestrates the flows below.
 
@@ -40,8 +40,10 @@ Menu actions, shortcuts, History's Rewrite again, and Dictate + Clean share this
 captures the configuration before recording and preserves the transcript for recovery if cleanup fails.
 Unavailable overrides never switch models automatically.
 
-**Provider configuration:** either or both API keys can be saved. A single menu combines the configured
-providers’ model catalogs, with provider-qualified IDs so names cannot collide. Each catalog refresh
+**Provider configuration:** ChatGPT plan accounts and either or both API keys can be connected.
+A single menu combines the configured providers’ model catalogs, with provider-qualified IDs so names
+cannot collide. ChatGPT model IDs also include the issued account registration, so switching accounts
+cannot redirect an instruction’s saved override. Each catalog refresh
 has its own status, error, and generation token; removing/replacing a key invalidates stale requests.
 Existing Anthropic model selections and cached catalogs migrate without changing custom prompts.
 
@@ -55,6 +57,28 @@ accounts for reasoning tokens and older model limits. See the official
 [Responses text guide](https://developers.openai.com/api/docs/guides/text),
 [model catalog API](https://developers.openai.com/api/reference/resources/models/methods/list), and
 [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning).
+
+**ChatGPT plan protocol:** `ChatGPTSignInService` implements the documented open-source public-client
+OAuth flow with PKCE, state, nonce, a persistent opaque host ID, and a short-lived callback listener
+bound to `127.0.0.1`. Dynamic registrations are saved per account/workspace. `ChatGPTIdentityVerifier`
+verifies RS256 signatures using OpenAI discovery/JWKS and validates issuer, audience, expiry, nonce,
+and the returning subject. Credentials live in one atomic Keychain vault, separate from API keys;
+only account metadata and registration/host IDs are stored in UserDefaults. Refreshes are serialized,
+rotating token pairs are saved together, and sign-out attempts refresh-token revocation.
+
+`ChatGPTClient` calls the public `/v1/models` and `/v1/responses` endpoints using the account’s OAuth
+access token. It parses the account-specific `models` catalog, retaining listed slugs, display names,
+and server ordering. Requests send `instructions`, array `input`, `store: false`, and `stream: true`,
+omitting unsupported API-key parameters such as `max_output_tokens`. HTTP/SSE transport lives in
+`ChatGPTHTTP`, with ephemeral storage and redirects disabled. `ChatGPTResponseStream` accepts output
+only after a valid `response.completed` event. Completed output items are retained because subscription
+streams can leave the terminal output array empty; deltas, failures, and interrupted streams never paste.
+A token-related 401 gets one refresh/retry. Account switches invalidate pending results and catalogs.
+Disconnecting or losing a selected ChatGPT model retains its unavailable selection rather than
+silently choosing separately billed API access. See the official
+[sign-in contract](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) and
+[preview requirements](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+The manual acceptance checklist is in [CHATGPT_TESTING.md](docs/CHATGPT_TESTING.md).
 
 **Anthropic protocol:** `GET /v1/models` supplies the live Claude catalog; `POST /v1/messages` sends
 the same combined rules as `system` and source text as one user message. Each API key is sent only to

@@ -1,6 +1,7 @@
 import AppKit
 import AudioToolbox
 import SwiftUI
+import Combine
 import KeyboardShortcuts
 import DictidyKit
 
@@ -13,7 +14,7 @@ enum SettingsTab: Hashable {
 enum DictationMode { case raw, clean }
 
 /// Central app state: instructions, live model list, selection, settings. Persists to
-/// UserDefaults (instructions + cached models) and the Keychain (API keys), and wires the
+/// UserDefaults (instructions + cached models) and the Keychain (credentials), and wires the
 /// global shortcuts to the rewrite flow.
 @MainActor
 final class AppState: ObservableObject {
@@ -105,6 +106,8 @@ final class AppState: ObservableObject {
     }
 
     let modelStore = WhisperModelStore()
+    let chatGPT = ChatGPTSignInService()
+    private var chatGPTObservation: AnyCancellable?
     private let registry = ShortcutsRegistry()
     private let escapeKeyMonitor = EscapeKeyMonitor()
     private let defaults = UserDefaults.standard
@@ -160,6 +163,8 @@ final class AppState: ObservableObject {
         loadPersisted()
         hasAnthropicAPIKey = KeychainService.exists(provider: .anthropic)
         hasOpenAIAPIKey = KeychainService.exists(provider: .openai)
+        chatGPTObservation = chatGPT.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        chatGPT.onConnectionChanged = { [weak self] in self?.chatGPTConnectionChanged() }
         if !availableModels.isEmpty || configuredProviders.isEmpty { reconcileModelSelection() }
         launchAtLogin = LaunchAtLogin.isEnabled
 
@@ -191,17 +196,30 @@ final class AppState: ObservableObject {
     var needsSetup: Bool { !accessibilityTrusted || !rewriteReady }
 
     func hasAPIKey(for provider: RewriteProvider) -> Bool {
-        provider == .anthropic ? hasAnthropicAPIKey : hasOpenAIAPIKey
+        switch provider {
+        case .anthropic: return hasAnthropicAPIKey
+        case .openai: return hasOpenAIAPIKey
+        case .chatgpt: return false
+        }
+    }
+
+    func isConfigured(_ provider: RewriteProvider) -> Bool {
+        provider == .chatgpt ? chatGPT.isConnected : hasAPIKey(for: provider)
     }
 
     var configuredProviders: Set<RewriteProvider> {
-        Set(RewriteProvider.allCases.filter { hasAPIKey(for: $0) })
+        Set(RewriteProvider.allCases.filter { isConfigured($0) })
     }
 
     var availableModels: [RewriteModel] {
-        models.filter { hasAPIKey(for: $0.provider) }.sorted {
-            if $0.provider != $1.provider { return $0.provider.rawValue < $1.provider.rawValue }
-            return $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        RewriteProvider.allCases.flatMap { provider in
+            let catalog = models.filter {
+                $0.provider == provider && isConfigured(provider)
+                    && (provider != .chatgpt || $0.connectionID == chatGPT.selectedAccountID)
+            }
+            return provider == .chatgpt ? catalog : catalog.sorted {
+                $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+            }
         }
     }
 
@@ -263,7 +281,7 @@ final class AppState: ObservableObject {
     // MARK: - Rewrite flow
 
     private func rewriteConfiguration(for instruction: Instruction) throws -> RewriteConfiguration {
-        try RewriteConfiguration(instruction: instruction, defaultModelID: selectedModelID, models: models,
+        try RewriteConfiguration(instruction: instruction, defaultModelID: selectedModelID, models: availableModels,
                                  configuredProviders: configuredProviders, baseSystemPrompt: baseSystemPrompt)
     }
 
@@ -349,19 +367,32 @@ final class AppState: ObservableObject {
     /// Credentials and wire model IDs come from the captured model, never a mutable picker selection.
     private func generate(configuration: RewriteConfiguration, text: String) async throws -> String {
         try Task.checkCancellation()
-        try configuration.validateAvailability(models: models, configuredProviders: configuredProviders)
+        try configuration.validateAvailability(models: availableModels, configuredProviders: configuredProviders)
         let model = configuration.model
         let userText = rewriteInputMessage(text)
-        let key = apiKey(for: model.provider) ?? ""
         switch model.provider {
         case .anthropic:
+            let key = apiKey(for: .anthropic) ?? ""
             guard !key.isEmpty else { throw AnthropicError.missingAPIKey }
             return try await AnthropicClient(apiKey: key).rewrite(
                 text: userText, systemPrompt: configuration.systemPrompt, model: model.modelID)
         case .openai:
+            let key = apiKey(for: .openai) ?? ""
             guard !key.isEmpty else { throw OpenAIError.missingAPIKey }
             return try await OpenAIClient(apiKey: key).rewrite(
                 text: userText, systemPrompt: configuration.systemPrompt, model: model.modelID)
+        case .chatgpt:
+            guard let accountID = model.connectionID else { throw ChatGPTError.notConnected }
+            do {
+                return try await chatGPT.authorized(accountID: accountID) { accessToken in
+                    try await ChatGPTClient(accessToken: accessToken, connectionID: accountID)
+                        .rewrite(text: userText, systemPrompt: configuration.systemPrompt, model: model.modelID,
+                                 streamTransport: { try await ChatGPTHTTP.stream($0) })
+                }
+            } catch {
+                if !(error is CancellationError) { modelErrors[.chatgpt] = error.localizedDescription }
+                throw error
+            }
         }
     }
 
@@ -713,6 +744,7 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func saveAPIKey(_ key: String, provider: RewriteProvider) -> Bool {
+        guard RewriteProvider.apiKeyProviders.contains(provider) else { return false }
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return false }
         do { try KeychainService.save(key, provider: provider) }
@@ -729,6 +761,7 @@ final class AppState: ObservableObject {
     }
 
     func removeAPIKey(provider: RewriteProvider) {
+        guard RewriteProvider.apiKeyProviders.contains(provider) else { return }
         do { try KeychainService.delete(provider: provider) }
         catch { modelErrors[provider] = error.localizedDescription; return }
         refreshTokens[provider] = UUID() // discard any response still arriving for the removed key
@@ -752,8 +785,9 @@ final class AppState: ObservableObject {
     }
 
     func refreshModels(for provider: RewriteProvider) async {
-        guard hasAPIKey(for: provider), let key = apiKey(for: provider), !key.isEmpty else {
-            modelErrors[provider] = "Add your \(provider.displayName) API key first."
+        guard isConfigured(provider) else {
+            modelErrors[provider] = provider == .chatgpt ? ChatGPTError.notConnected.localizedDescription
+                : "Add your \(provider.displayName) API key first."
             return
         }
         let token = UUID()
@@ -767,23 +801,42 @@ final class AppState: ObservableObject {
             let list: [RewriteModel]
             switch provider {
             case .anthropic:
+                let key = apiKey(for: .anthropic) ?? ""
                 list = try await AnthropicClient(apiKey: key).listModels().map {
                     RewriteModel(provider: .anthropic, modelID: $0.id, displayName: $0.displayName)
                 }
             case .openai:
+                let key = apiKey(for: .openai) ?? ""
                 list = try await OpenAIClient(apiKey: key).listModels()
+            case .chatgpt:
+                guard let accountID = chatGPT.selectedAccountID else { throw ChatGPTError.notConnected }
+                list = try await chatGPT.authorized(accountID: accountID) { accessToken in
+                    try await ChatGPTClient(accessToken: accessToken, connectionID: accountID,
+                                           transport: { try await ChatGPTHTTP.session.data(for: $0) }).listModels()
+                }
             }
-            guard refreshTokens[provider] == token, hasAPIKey(for: provider) else { return }
+            guard refreshTokens[provider] == token, isConfigured(provider) else { return }
             models.removeAll { $0.provider == provider }
             models.append(contentsOf: list)
             modelsLastFetched[provider] = Date()
-            if list.isEmpty { modelErrors[provider] = "No text rewriting models are available for this key." }
+            if list.isEmpty { modelErrors[provider] = "No text rewriting models are available for this connection." }
             persistModels()
             reconcileModelSelection()
         } catch {
-            guard refreshTokens[provider] == token, hasAPIKey(for: provider) else { return }
+            guard refreshTokens[provider] == token, isConfigured(provider) else { return }
             modelErrors[provider] = error.localizedDescription
         }
+    }
+
+    private func chatGPTConnectionChanged() {
+        refreshTokens[.chatgpt] = UUID()
+        refreshingProviders.remove(.chatgpt)
+        models.removeAll { $0.provider == .chatgpt }
+        modelsLastFetched[.chatgpt] = nil
+        modelErrors[.chatgpt] = nil
+        persistModels()
+        reconcileModelSelection()
+        if chatGPT.isConnected { Task { await refreshModels(for: .chatgpt) } }
     }
 
     // MARK: - Instructions CRUD
@@ -1093,8 +1146,15 @@ final class AppState: ObservableObject {
         alert.messageText = "Dictidy"
         alert.informativeText = message
         alert.alertStyle = .warning
+        let usageLimit = message.contains("[subscription_sharing_usage_limit_exceeded]")
+        if usageLimit {
+            alert.addButton(withTitle: "Manage usage")
+            alert.addButton(withTitle: "OK")
+        }
         alert.window.level = .floating
         alert.window.makeKeyAndOrderFront(nil)
-        alert.runModal()
+        if alert.runModal() == .alertFirstButtonReturn && usageLimit {
+            NSWorkspace.shared.open(ChatGPTSignInService.usageURL)
+        }
     }
 }

@@ -9,7 +9,7 @@ public enum RewriteConfigurationError: LocalizedError, Equatable {
         case .defaultModelUnavailable:
             return "Choose a default model in Settings → Rewrite, or set a model for this instruction in Settings → Instructions."
         case .modelUnavailable(let id):
-            return "The selected model (\(id)) is unavailable. Check its API key or refresh models in Settings → Rewrite. You can also choose another model or Use default for this instruction in Settings → Instructions."
+            return "The selected model (\(id)) is unavailable. Check its connection or refresh models in Settings → Rewrite. You can also choose another model or Use default for this instruction in Settings → Instructions."
         }
     }
 }

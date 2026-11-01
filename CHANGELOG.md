@@ -9,6 +9,12 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **ChatGPT subscription connection.** Use Continue with ChatGPT in Rewrite settings or setup to
+  connect an eligible Plus or Pro account, choose ChatGPT plan models, and manage usage. Tokens stay
+  in Keychain and renew automatically. Saved accounts, sign-out, and API-key access remain separate.
+  Incomplete responses never replace selected text, and plan failures never fall back to API billing.
+
 ## [2.2.0] - 2026-10-22
 
 ### Added

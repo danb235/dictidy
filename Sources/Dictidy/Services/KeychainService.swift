@@ -7,23 +7,27 @@ enum KeychainService {
     struct KeychainError: LocalizedError {
         let status: OSStatus
         var errorDescription: String? {
-            "Couldn't update the API key in Keychain: " + (SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)")
+            "Couldn't update credentials in Keychain: " + (SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)")
         }
     }
 
-    private static func query(_ provider: RewriteProvider) -> [String: Any] {
+    private static func query(_ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: "com.opensource.dictidy",
-         kSecAttrAccount as String: provider == .anthropic ? "anthropic-api-key" : "openai-api-key"]
+         kSecAttrAccount as String: account]
     }
 
     static func save(_ key: String, provider: RewriteProvider) throws {
-        let base = query(provider)
-        let value = [kSecValueData as String: Data(key.utf8)]
+        try save(Data(key.utf8), account: provider.rawValue + "-api-key")
+    }
+
+    static func save(_ data: Data, account: String) throws {
+        let base = query(account)
+        let value = [kSecValueData as String: data]
         var status = SecItemUpdate(base as CFDictionary, value as CFDictionary)
         if status == errSecItemNotFound {
             var attrs = base
-            attrs[kSecValueData as String] = Data(key.utf8)
+            attrs[kSecValueData as String] = data
             attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
             status = SecItemAdd(attrs as CFDictionary, nil)
         }
@@ -31,22 +35,34 @@ enum KeychainService {
     }
 
     static func load(provider: RewriteProvider) -> String? {
-        var request = query(provider)
+        load(account: provider.rawValue + "-api-key").flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    static func load(account: String) -> Data? {
+        var request = query(account)
         request[kSecReturnData as String] = true
         request[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         guard SecItemCopyMatching(request as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        return data
     }
 
     /// Check presence without decrypting the key or asking for authorization at launch.
     static func exists(provider: RewriteProvider) -> Bool {
-        SecItemCopyMatching(query(provider) as CFDictionary, nil) == errSecSuccess
+        exists(account: provider.rawValue + "-api-key")
+    }
+
+    static func exists(account: String) -> Bool {
+        SecItemCopyMatching(query(account) as CFDictionary, nil) == errSecSuccess
     }
 
     static func delete(provider: RewriteProvider) throws {
-        let status = SecItemDelete(query(provider) as CFDictionary)
+        try delete(account: provider.rawValue + "-api-key")
+    }
+
+    static func delete(account: String) throws {
+        let status = SecItemDelete(query(account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
     }
 }

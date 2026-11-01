@@ -384,12 +384,15 @@ await expectAnthropicError("non-UTF8 error body → .http with fallback message"
 }, where: { if case .http(500, let msg) = $0 { return msg == "unknown error" }; return false })
 
 print("Online providers and selection")
-check("providers are Anthropic and OpenAI", RewriteProvider.allCases == [.anthropic, .openai])
+check("providers include a distinct ChatGPT plan connection", RewriteProvider.allCases == [.anthropic, .openai, .chatgpt]
+      && RewriteProvider.apiKeyProviders == [.anthropic, .openai]
+      && RewriteProvider.chatgpt.displayName == "ChatGPT plan" && RewriteProvider.chatgpt.keyURL == nil
+      && RewriteProvider.chatgpt.apiHost == "api.openai.com")
 check("obsolete local provider is not selectable", RewriteProvider(rawValue: "local") == nil)
 check("provider labels and credential destinations are distinct",
       RewriteProvider.anthropic.displayName == "Anthropic" && RewriteProvider.openai.displayName == "OpenAI"
       && RewriteProvider.anthropic.apiHost == "api.anthropic.com" && RewriteProvider.openai.apiHost == "api.openai.com"
-      && RewriteProvider.anthropic.keyURL.host == "console.anthropic.com" && RewriteProvider.openai.keyURL.host == "platform.openai.com")
+      && RewriteProvider.anthropic.keyURL?.host == "console.anthropic.com" && RewriteProvider.openai.keyURL?.host == "platform.openai.com")
 let sonnet = RewriteModel(provider: .anthropic, modelID: "claude-sonnet", displayName: "Sonnet")
 let opus = RewriteModel(provider: .anthropic, modelID: "claude-opus", displayName: "Opus")
 let gpt = RewriteModel(provider: .openai, modelID: "gpt-6.1-sol", displayName: "GPT")
@@ -602,6 +605,8 @@ for (name, body, predicate) in badResponses {
 }
 let openAIErrors: [OpenAIError] = [.missingAPIKey, .http(400,"bad"), .network("offline"), .decoding("shape"), .incompleteResponse("limit"), .response("declined"), .emptyResponse]
 check("OpenAI errors have useful descriptions", openAIErrors.allSatisfy { !$0.localizedDescription.isEmpty })
+
+await runChatGPTTests()
 
 print("\n\(total - failed)/\(total) checks passed")
 if failed > 0 {

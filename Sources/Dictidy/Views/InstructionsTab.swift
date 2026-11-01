@@ -210,7 +210,7 @@ private struct InstructionModelPicker: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if overrideUnavailable {
-                Text("This model is unavailable. Choose another model or Use default. Check its API key or refresh models in Rewrite settings.")
+                Text("This model is unavailable. Choose another model or Use default. Check its connection or refresh models in Rewrite settings.")
                     .font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             } else {

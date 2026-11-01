@@ -45,6 +45,9 @@ jobs:
             -Xswiftc -profile-generate -Xswiftc -profile-coverage-mapping
           LLVM_PROFILE_FILE="$PWD/cov/rdb.%p.profraw" .build/debug/DictidyTests
 
+      - name: ChatGPT native integration checks
+        run: ./Scripts/test-chatgpt-platform.sh
+
       - name: Coverage gate (DictidyKit)
         run: |
           set -euo pipefail

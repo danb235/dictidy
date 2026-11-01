@@ -28,7 +28,7 @@ This removes the footprint documented in README.md:
   - Application Support models/history
   - preferences and UserDefaults domains
   - caches and HTTP storage
-  - saved Anthropic and OpenAI API keys from Keychain
+  - saved API keys and ChatGPT sign-in tokens from Keychain
   - Accessibility and Microphone permission grants
 
 It intentionally does not remove the local repo build at ./Dictidy.app.
@@ -112,9 +112,10 @@ echo "==> Removing UserDefaults domains..."
 run defaults delete "$APP_ID" 2>/dev/null || true
 run defaults delete "$APP_NAME" 2>/dev/null || true
 
-echo "==> Removing saved API keys from Keychain..."
+echo "==> Removing saved credentials from Keychain..."
 run security delete-generic-password -s "$APP_ID" -a anthropic-api-key 2>/dev/null || true
 run security delete-generic-password -s "$APP_ID" -a openai-api-key 2>/dev/null || true
+run security delete-generic-password -s "$APP_ID" -a chatgpt-credentials 2>/dev/null || true
 
 echo "==> Resetting macOS permission grants..."
 run tccutil reset Accessibility "$APP_ID" 2>/dev/null || true
