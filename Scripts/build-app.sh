@@ -26,9 +26,16 @@ fi
 # NOT used: it requires full Xcode's XCBuild, which the Command Line Tools lack, and Dictidy targets
 # Apple Silicon (Metal-accelerated whisper). The CI release runner is arm64, so releases are arm64.
 echo "==> Building (${CONFIG})..."
-swift build -c "$CONFIG"
+swift_build() {
+    if [ -n "${SDKROOT:-}" ]; then
+        swift build --sdk "$SDKROOT" "$@"
+    else
+        swift build "$@"
+    fi
+}
+swift_build -c "$CONFIG"
 
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+BIN_DIR="$(swift_build -c "$CONFIG" --show-bin-path)"
 BIN_PATH="$BIN_DIR/$APP_NAME"
 if [ ! -f "$BIN_PATH" ]; then
     echo "ERROR: Built binary not found at ${BIN_PATH}" >&2
