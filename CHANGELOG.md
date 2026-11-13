@@ -9,6 +9,16 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-11-13
+
+### Fixed
+- **Dictation keeps working when your microphone changes.** Switching inputs, or a headset such as
+  AirPods moving between call and listening mode, no longer leaves the dictation shortcuts doing
+  nothing until you quit and reopen Dictidy. A switch during a dictation continues on the new
+  microphone and keeps what you already said.
+- **Clear message when no microphone is available.** Dictidy now explains what to check instead of
+  silently not recording.
+
 ## [2.2.0] - 2026-10-22
 
 ### Added
