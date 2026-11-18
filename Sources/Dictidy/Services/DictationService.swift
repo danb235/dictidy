@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 
 /// Captures microphone audio and converts it to the 16 kHz mono Float32 stream whisper.cpp needs.
@@ -37,20 +38,31 @@ final class DictationService {
     private let lock = NSLock()
     private(set) var isRunning = false
 
-    /// Called once per recording, on the main queue, when the first audio arrives from the
-    /// microphone. That is the moment capture is really live (after any Bluetooth profile switch).
+    /// Called once per recording, on the main queue, when the microphone is really live: the first
+    /// buffer that carries actual sound. Opening an AirPods mic switches the headset into call mode,
+    /// and until that Bluetooth link is up the engine delivers buffers of pure digital silence, so the
+    /// first buffer alone is too early (a tone played then is lost). `liveFallbackDelay` after capture
+    /// starts, it fires anyway, so a very quiet room or heavy noise suppression can't suppress it.
     var onCaptureStarted: (() -> Void)?
     /// Whether `onCaptureStarted` has fired for the current recording. Guarded by `lock`.
     private var captureStartSignalled = false
+    /// Identifies the current recording, so a fallback scheduled for an earlier one is ignored.
+    private var recordingID = UUID()
+    private static let liveFallbackDelay: TimeInterval = 1.2
 
     func start() throws {
         teardownEngine()
+        let id = UUID()
         lock.lock()
         samples.removeAll(keepingCapacity: true)
         captureStartSignalled = false
+        recordingID = id
         lock.unlock()
         try startEngine()
         isRunning = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.liveFallbackDelay) { [weak self] in
+            self?.signalCaptureStarted(ifRecording: id)
+        }
     }
 
     /// Stops recording and returns the captured 16 kHz mono samples.
@@ -153,14 +165,28 @@ final class DictationService {
 
         let count = Int(out.frameLength)
         guard count > 0 else { return }
+        // Any non-zero sample means real sound is arriving, not the silence padding of a
+        // Bluetooth link that is still connecting.
+        var peak: Float = 0
+        vDSP_maxmgv(channel[0], 1, &peak, vDSP_Length(count))
+
         lock.lock()
         samples.append(contentsOf: UnsafeBufferPointer(start: channel[0], count: count))
-        let isFirstAudio = !captureStartSignalled
-        captureStartSignalled = true
+        let id = recordingID
+        let shouldSignal = peak > 0 && !captureStartSignalled
         lock.unlock()
 
-        if isFirstAudio {
-            DispatchQueue.main.async { [weak self] in self?.onCaptureStarted?() }
+        if shouldSignal {
+            DispatchQueue.main.async { [weak self] in self?.signalCaptureStarted(ifRecording: id) }
         }
+    }
+
+    /// Fires `onCaptureStarted` at most once per recording, from the first live buffer or the fallback.
+    private func signalCaptureStarted(ifRecording id: UUID) {
+        lock.lock()
+        let fire = isRunning && recordingID == id && !captureStartSignalled
+        if fire { captureStartSignalled = true }
+        lock.unlock()
+        if fire { onCaptureStarted?() }
     }
 }
