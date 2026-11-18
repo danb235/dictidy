@@ -46,7 +46,8 @@ struct DictationTab: View {
             }
             .pickerStyle(.menu)
 
-            Toggle("Play start/stop sounds", isOn: $state.playDictationTones)
+            Toggle("Play dictation sounds", isOn: $state.playDictationTones)
+                .help("A tick when the mic is listening, a soft sound when you stop, and a pop when the text is pasted.")
 
             Spacer()
         }

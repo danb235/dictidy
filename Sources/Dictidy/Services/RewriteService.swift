@@ -110,7 +110,10 @@ final class RewriteService {
 
     /// Writes `text` to the pasteboard and synthesizes ⌘V to paste it over the selection.
     /// Optionally restores the previous clipboard contents afterward.
-    func paste(_ text: String, restoreClipboard: Bool, to target: PasteTarget? = nil) async throws {
+    /// `didPaste` runs right after ⌘V is sent, before any clipboard restore delay, so a caller can
+    /// give feedback at the moment the text appears.
+    func paste(_ text: String, restoreClipboard: Bool, to target: PasteTarget? = nil,
+               didPaste: (() -> Void)? = nil) async throws {
         if let target { try await restoreFocus(to: target) }
         let pasteboard = NSPasteboard.general
         let previous = pasteboard.string(forType: .string)
@@ -136,6 +139,7 @@ final class RewriteService {
             throw error
         }
         await postCommandKey(CGKeyCode(kVK_ANSI_V))
+        didPaste?()
 
         if restoreClipboard {
             // Once Cmd-V has been posted, finish the clipboard handoff even if cancellation arrives;

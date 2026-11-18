@@ -1,5 +1,4 @@
 import AppKit
-import AudioToolbox
 import SwiftUI
 import KeyboardShortcuts
 import DictidyKit
@@ -137,11 +136,9 @@ final class AppState: ObservableObject {
     /// pin GBs of memory for the rest of the session. Re-armed on each use.
     private var idleUnloadTask: Task<Void, Never>?
     private let idleUnloadDelay: UInt64 = 240_000_000_000   // 4 minutes
-    /// System-sound IDs for the dictation start/stop tones, loaded once. Played via AudioServices
-    /// (not NSSound) so playback doesn't depend on a retained object and isn't clipped by the audio
-    /// engine grabbing the mic.
-    private lazy var startSoundID: SystemSoundID = Self.loadSystemSound("Tink")
-    private lazy var stopSoundID: SystemSoundID = Self.loadSystemSound("Pop")
+    /// The dictation start, stop, and done cues. Played as system sounds (not NSSound) so they follow
+    /// the alert volume and playback doesn't depend on a retained object.
+    private let sounds = DictationSounds()
 
     private enum Keys {
         static let seeded = "didSeedDefaults"
@@ -339,7 +336,7 @@ final class AppState: ObservableObject {
             throw error
         }
         guard processingIsCurrent(processingID) else { throw CancellationError() }
-        try await pasteGeneratedText(result)
+        try await pasteGeneratedText(result, playsDoneSound: kind == .dictationClean)
         guard processingIsCurrent(processingID) else { throw CancellationError() }
         recordHistory(before: before, after: result, instructionName: configuration.instruction.name,
                       model: configuration.model.label, kind: kind)
@@ -391,9 +388,12 @@ final class AppState: ObservableObject {
     // MARK: - Text recovery
 
     /// Retain output before attempting the paste so a failed handoff can be retried without generating again.
-    private func pasteGeneratedText(_ text: String) async throws {
+    /// Dictation pastes play the done sound the moment ⌘V is sent; instruction rewrites stay silent.
+    private func pasteGeneratedText(_ text: String, playsDoneSound: Bool = false) async throws {
         lastGeneratedText = text
-        try await RewriteService.shared.paste(text, restoreClipboard: restoreClipboard)
+        try await RewriteService.shared.paste(text, restoreClipboard: restoreClipboard) { [weak self] in
+            if playsDoneSound { self?.playSound(.done) }
+        }
     }
 
     func copyLastText() {
@@ -481,7 +481,7 @@ final class AppState: ObservableObject {
             DictationService.shared.cancel()
             dictationMode = nil
             dictationCleanupConfiguration = nil
-            playTone(start: false)
+            playSound(.stop)
         }
 
         if isWorking {
@@ -579,7 +579,7 @@ final class AppState: ObservableObject {
         // "listening now" signal on every device.
         DictationService.shared.onCaptureStarted = { [weak self] in
             guard let self, self.isRecording else { return }
-            self.playTone(start: true)
+            self.playSound(.start)
         }
         do {
             try DictationService.shared.start()
@@ -603,7 +603,7 @@ final class AppState: ObservableObject {
         dictationMode = nil
         dictationCleanupConfiguration = nil
         let samples = DictationService.shared.stopAndCollect()
-        playTone(start: false)   // after the tap is removed, so the tone isn't captured into the audio
+        playSound(.stop)   // after the tap is removed, so the sound isn't captured into the audio
         guard !samples.isEmpty else { startErrorFlash(); return }   // no audio captured
 
         let id = beginProcessing(status: "Transcribing…")
@@ -616,7 +616,7 @@ final class AppState: ObservableObject {
                 guard self.processingIsCurrent(id) else { return }
                 switch mode {
                 case .raw:
-                    try await self.pasteGeneratedText(transcript)
+                    try await self.pasteGeneratedText(transcript, playsDoneSound: true)
                     guard self.processingIsCurrent(id) else { return }
                     self.recordRawDictation(transcript: transcript)
                     self.scheduleIdleUnload()
@@ -627,7 +627,7 @@ final class AppState: ObservableObject {
                                                       before: transcript, kind: .dictationClean, processingID: id)
                     } else {
                         // No cleanup instruction or no rewrite provider set up — paste the raw transcript.
-                        try await self.pasteGeneratedText(transcript)
+                        try await self.pasteGeneratedText(transcript, playsDoneSound: true)
                         guard self.processingIsCurrent(id) else { return }
                         self.recordRawDictation(transcript: transcript)
                         self.scheduleIdleUnload()
@@ -665,15 +665,10 @@ final class AppState: ObservableObject {
         Task { [weak self] in _ = try? await self?.resolveEngine() }
     }
 
-    private func playTone(start: Bool) {
+    /// Start (Tink), stop (quiet Purr), and done (Pop) cues; see `DictationSounds`.
+    private func playSound(_ cue: DictationSounds.Cue) {
         guard playDictationTones else { return }
-        AudioServicesPlaySystemSound(start ? startSoundID : stopSoundID)
-    }
-
-    private static func loadSystemSound(_ name: String) -> SystemSoundID {
-        var id: SystemSoundID = 0
-        AudioServicesCreateSystemSoundID(URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff") as CFURL, &id)
-        return id
+        sounds.play(cue)
     }
 
     /// Advances `recordingFrame` on a timer so the menu-bar mic visibly pulses while listening.
