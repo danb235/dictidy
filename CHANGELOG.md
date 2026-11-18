@@ -9,6 +9,14 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **See your last text in the menu.** A short preview of the latest rewrite or dictation appears under
+  Copy Last Text and Paste Last Text, so you know what you are about to copy or paste.
+
+### Fixed
+- **Hear the tick when dictation starts.** The start sound now plays once the microphone is actually
+  listening, so it is no longer lost on AirPods and other Bluetooth headsets.
+
 ## [2.2.1] - 2026-11-13
 
 ### Fixed
