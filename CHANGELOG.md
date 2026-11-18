@@ -9,6 +9,14 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **Hear when your dictation is pasted.** A pop now plays the moment your dictated text lands, which
+  is most useful when Dictate + Clean takes a few seconds. No pop means nothing was pasted.
+
+### Changed
+- **A softer sound when you stop dictating.** Stopping now plays a quiet purr, so the pop that
+  follows stands out as "done". The setting is now called Play dictation sounds and covers all three.
+
 ## [2.4.0] - 2026-11-18
 
 ### Added
