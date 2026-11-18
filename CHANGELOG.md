@@ -9,6 +9,15 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **Read the whole last text on hover.** Rest the pointer on Copy Last Text, Paste Last Text, or the
+  preview line to see the full text in a tooltip. Very long text is shortened, with a note of how much
+  more there is.
+
+### Fixed
+- **The dictation start tick is audible on AirPods.** The tick now waits until the microphone is
+  actually picking up sound, after your headset finishes switching to its microphone mode.
+
 ## [2.3.0] - 2026-11-18
 
 ### Added
