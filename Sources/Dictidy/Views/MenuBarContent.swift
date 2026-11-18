@@ -7,15 +7,22 @@ struct MenuBarContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        // Hovering Copy, Paste, or the preview line shows the full text in a standard macOS
+        // tooltip (SwiftUI maps .help to NSMenuItem.toolTip in a menu-style MenuBarExtra).
+        let lastTextTooltip = state.lastGeneratedText.flatMap { menuTooltip($0) } ?? ""
+
         Button("Copy Last Text") { state.copyLastText() }
             .disabled(state.lastGeneratedText == nil || state.isWorking || state.isRecording)
+            .help(lastTextTooltip)
 
         Button("Paste Last Text") { state.pasteLastText() }
             .disabled(state.lastGeneratedText == nil || state.isWorking || state.isRecording)
+            .help(lastTextTooltip)
 
         // A grey, one-line excerpt of what the two items above will copy or paste.
         if let text = state.lastGeneratedText, let preview = menuPreview(text) {
             Text(preview)
+                .help(lastTextTooltip)
         }
 
         Divider()

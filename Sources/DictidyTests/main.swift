@@ -202,6 +202,25 @@ check("emoji at the cut point stay intact",
       emojiPreview.dropFirst().dropLast(2).allSatisfy { $0 == "👍🏽" } && emojiPreview.count == 48)
 check("a non-positive limit is treated as 1", menuPreview("ab", limit: 0) == "“a…”")
 
+print("menuTooltip")
+check("short text is returned as is", menuTooltip("Hello there.") == "Hello there.")
+check("empty and blank text have no tooltip", menuTooltip("") == nil && menuTooltip(" \n\t\n ") == nil)
+check("line breaks are kept and the ends trimmed", menuTooltip("\n  Hi team,\nSee below.  \n") == "Hi team,\nSee below.")
+check("runs of blank lines shrink to one",
+      menuTooltip("One.\n\n\n   \n\nTwo.") == "One.\n\nTwo.")
+check("text exactly at the limit is not capped",
+      menuTooltip(String(repeating: "a", count: 1_000)) == String(repeating: "a", count: 1_000))
+let longWords = Array(repeating: "word", count: 300).joined(separator: " ")   // 1,499 characters
+let cappedTip = menuTooltip(longWords) ?? ""
+check("long text is capped at a word boundary with a count of what was left out",
+      cappedTip.hasPrefix("word word") && cappedTip.contains("word…\n\n(")
+      && cappedTip.hasSuffix(" more characters)"))
+check("the omitted count matches the text left out",
+      cappedTip.hasSuffix("(\((longWords.count - 999).formatted()) more characters)"))
+check("a single long word is still capped",
+      menuTooltip(String(repeating: "a", count: 1_200)) == String(repeating: "a", count: 1_000) + "…\n\n(200 more characters)")
+check("a non-positive limit is treated as 1", menuTooltip("ab", limit: 0) == "a…\n\n(1 more character)")
+
 print("AnthropicModel")
 do {
     let m = try JSONDecoder().decode(
