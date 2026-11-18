@@ -9,6 +9,8 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-18
+
 ### Added
 - **Hear when your dictation is pasted.** A pop now plays the moment your dictated text lands, which
   is most useful when Dictate + Clean takes a few seconds. No pop means nothing was pasted.
