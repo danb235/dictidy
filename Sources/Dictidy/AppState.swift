@@ -573,7 +573,14 @@ final class AppState: ObservableObject {
         } else {
             cleanupConfiguration = nil
         }
-        playTone(start: true)   // before the engine grabs the mic, so the tone isn't clipped
+        // Tick once the microphone is actually delivering audio, not before it opens. Opening a
+        // Bluetooth headset's mic (AirPods) switches it into call mode, and that switch silenced a
+        // tone played up front. Waiting for the first buffer also means the tick is an honest
+        // "listening now" signal on every device.
+        DictationService.shared.onCaptureStarted = { [weak self] in
+            guard let self, self.isRecording else { return }
+            self.playTone(start: true)
+        }
         do {
             try DictationService.shared.start()
         } catch {

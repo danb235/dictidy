@@ -37,9 +37,18 @@ final class DictationService {
     private let lock = NSLock()
     private(set) var isRunning = false
 
+    /// Called once per recording, on the main queue, when the first audio arrives from the
+    /// microphone. That is the moment capture is really live (after any Bluetooth profile switch).
+    var onCaptureStarted: (() -> Void)?
+    /// Whether `onCaptureStarted` has fired for the current recording. Guarded by `lock`.
+    private var captureStartSignalled = false
+
     func start() throws {
         teardownEngine()
-        lock.lock(); samples.removeAll(keepingCapacity: true); lock.unlock()
+        lock.lock()
+        samples.removeAll(keepingCapacity: true)
+        captureStartSignalled = false
+        lock.unlock()
         try startEngine()
         isRunning = true
     }
@@ -146,6 +155,12 @@ final class DictationService {
         guard count > 0 else { return }
         lock.lock()
         samples.append(contentsOf: UnsafeBufferPointer(start: channel[0], count: count))
+        let isFirstAudio = !captureStartSignalled
+        captureStartSignalled = true
         lock.unlock()
+
+        if isFirstAudio {
+            DispatchQueue.main.async { [weak self] in self?.onCaptureStarted?() }
+        }
     }
 }
