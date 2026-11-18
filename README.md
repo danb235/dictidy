@@ -99,8 +99,9 @@ History's **Rewrite again**. Duplicating an instruction copies its model choice.
 
 An unavailable override stays saved and shows a warning. Dictidy asks you to choose another model
 or Use default rather than switching models automatically. Dictate + Clean checks the override
-before recording. If cleanup fails after transcription, the raw transcript is available through
-**Paste Last Text** and History when enabled, without being pasted automatically. Escape discards
+before recording. If cleanup fails after transcription, the raw transcript is available at the top
+of the Dictidy menu (**Paste** or **Copy**) and in History when enabled, without being pasted
+automatically. Escape discards
 cancelled work.
 
 The built-in choices are **Auto Clean**, for tidying dictated speech while keeping your voice, and
@@ -113,14 +114,16 @@ Translate to English presets and adds Rewrite if you do not already have an inst
 
 ### Recover previous work
 
-Choose **Copy Last Text** at the top of the Dictidy menu to copy the latest rewrite or dictation
-to your clipboard for manual pasting. The copied text stays on your clipboard even when clipboard
-restoration is enabled.
+The top of the Dictidy menu shows the start of your latest rewrite or dictation. Hover it to read
+the whole text. The two actions under it work on that text:
 
-If the latest output did not reach your text box, click in the box, open the Dictidy menu-bar icon,
-and choose **Paste Last Text**. It retries the latest rewrite or dictation at that cursor without
-generating again. The latest output is available until you quit Dictidy or clear history, including
-when history is turned off. Your clipboard restore setting also applies to this action.
+- **Paste** retries it in your text box. Click in the box first, then open the Dictidy menu-bar icon
+  and choose **Paste**. Nothing is generated again.
+- **Copy** puts it on your clipboard for manual pasting. The copied text stays on your clipboard even
+  when clipboard restoration is enabled.
+
+The latest output is available until you quit Dictidy or clear history, including when history
+is turned off. Your clipboard restore setting also applies to Paste.
 
 Open **History** from the menu to recover recent rewrites and dictations. History is local and capped
 to the newest 100 entries.

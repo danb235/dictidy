@@ -28,8 +28,8 @@ Dictidy keeps voice transcription local and sends rewrite text to your chosen AP
   still apply. No conversation history or tools are sent.
 - **No telemetry or analytics.** Network calls are to the configured Anthropic/OpenAI APIs (model
   catalogs and rewrites), Hugging Face / GitHub for the Whisper download, and GitHub for app updates.
-- **Accessibility access** copies the selection, restores the destination window and control for
-  Paste Last Text, and pastes the result (synthetic ⌘C/⌘V). Dictidy does not record keystrokes.
+- **Accessibility access** copies the selection, restores the destination window and control when
+  you paste your last text again, and pastes the result (synthetic ⌘C/⌘V). Dictidy does not record keystrokes.
 
 ## A note on code signing
 
