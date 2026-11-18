@@ -179,6 +179,29 @@ check("tells the model to output only the rewritten text",
 check("preserves multi-line input",
       rewriteInputMessage("line one\nline two").contains("line one\nline two"))
 
+print("menuPreview")
+check("short text is shown whole, in quotes", menuPreview("Hello there.") == "“Hello there.”")
+check("empty text has no preview", menuPreview("") == nil)
+check("whitespace-only text has no preview", menuPreview(" \n\t  \n") == nil)
+check("line breaks and tabs collapse to single spaces",
+      menuPreview("  Hi team,\n\n\tSee below.  ") == "“Hi team, See below.”")
+check("text exactly at the limit is not truncated",
+      menuPreview(String(repeating: "a", count: 45)) == "“" + String(repeating: "a", count: 45) + "”")
+let longPreview = menuPreview("Thanks for the update, I'll send the revised draft by Friday.")
+check("long text is cut at a word boundary with an ellipsis",
+      longPreview == "“Thanks for the update, I'll send the revised…”")
+check("long text preview is at most limit + 3 characters", (longPreview?.count ?? 0) <= 48)
+check("a single long word is still cut",
+      menuPreview(String(repeating: "a", count: 60)) == "“" + String(repeating: "a", count: 45) + "…”")
+check("trailing separators are dropped before the ellipsis",
+      menuPreview("alpha beta, gamma delta", limit: 12) == "“alpha beta…”")
+check("text made only of separators keeps its cut",
+      menuPreview(String(repeating: ",", count: 50), limit: 5) == "“,,,,,…”")
+let emojiPreview = menuPreview(String(repeating: "👍🏽", count: 50)) ?? ""
+check("emoji at the cut point stay intact",
+      emojiPreview.dropFirst().dropLast(2).allSatisfy { $0 == "👍🏽" } && emojiPreview.count == 48)
+check("a non-positive limit is treated as 1", menuPreview("ab", limit: 0) == "“a…”")
+
 print("AnthropicModel")
 do {
     let m = try JSONDecoder().decode(

@@ -13,6 +13,11 @@ struct MenuBarContent: View {
         Button("Paste Last Text") { state.pasteLastText() }
             .disabled(state.lastGeneratedText == nil || state.isWorking || state.isRecording)
 
+        // A grey, one-line excerpt of what the two items above will copy or paste.
+        if let text = state.lastGeneratedText, let preview = menuPreview(text) {
+            Text(preview)
+        }
+
         Divider()
 
         if state.isRecording {
