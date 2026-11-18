@@ -312,7 +312,7 @@ final class AppState: ObservableObject {
     private struct DictationCleanupFailure: LocalizedError {
         let reason: String
         var errorDescription: String? {
-            "Couldn't clean your dictation.\n\n\(reason)\n\nYour transcript is available through Paste Last Text."
+            "Couldn't clean your dictation.\n\n\(reason)\n\nYour transcript is at the top of the Dictidy menu, ready to paste or copy."
         }
     }
 
@@ -412,7 +412,7 @@ final class AppState: ObservableObject {
         }
         // Capture synchronously while the menu action still belongs to the app the user was typing in.
         guard let target = RewriteService.shared.capturePasteTarget() else {
-            notify("Click in the text box where you want the text, then choose Paste Last Text again.")
+            notify("Click in the text box where you want the text, then choose Paste in the Dictidy menu again.")
             return
         }
         let id = beginProcessing(status: "Pasting…")

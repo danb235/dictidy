@@ -1,7 +1,7 @@
 import Foundation
 
-/// A one-line, quoted excerpt of `text` for the menu-bar menu, so the user can see what Copy Last
-/// Text and Paste Last Text will use. Whitespace and line breaks collapse to single spaces. Text longer
+/// A one-line, quoted excerpt of `text` for the menu-bar menu, where it labels the Paste and Copy
+/// actions for the latest output. Whitespace and line breaks collapse to single spaces. Text longer
 /// than `limit` characters is cut, preferably at a word boundary, and ends with an ellipsis. Counts
 /// `Character`s, so emoji and accented letters are never split. Returns nil when there is nothing to show.
 public func menuPreview(_ text: String, limit: Int = 45) -> String? {

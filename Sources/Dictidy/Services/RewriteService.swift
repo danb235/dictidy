@@ -21,7 +21,7 @@ final class RewriteService {
         case targetUnavailable
 
         var errorDescription: String? {
-            "Couldn't return to the text box. Click in it and choose Paste Last Text again."
+            "Couldn't return to the text box. Click in it and choose Paste in the Dictidy menu again."
         }
     }
 
