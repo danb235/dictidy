@@ -9,6 +9,8 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-18
+
 ### Added
 - **See your last text in the menu.** A short preview of the latest rewrite or dictation appears under
   Copy Last Text and Paste Last Text, so you know what you are about to copy or paste.
