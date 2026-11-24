@@ -8,16 +8,19 @@ import DictidyKit
 struct InstructionsTab: View {
     @EnvironmentObject var state: AppState
     @State private var selection: UUID?
+    @State private var showingPasteList = false
+    @State private var pastedCorrections = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Each instruction appears in the menu bar and can have its own global shortcut. Its "
-                 + "prompt describes only the style to apply. The base instructions below are added in "
-                 + "front of every rewrite. Unlimited, free.")
+                 + "prompt describes only the style to apply. The base instructions and corrections below "
+                 + "apply to every rewrite. Unlimited, free.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             baseInstructions
+            correctionsSection
 
             HSplitView {
                 master.frame(minWidth: 200, idealWidth: 230, maxWidth: 320)
@@ -51,6 +54,83 @@ struct InstructionsTab: View {
             Text("Base instructions (applied to every rewrite)")
                 .font(.subheadline).fontWeight(.medium)
         }
+    }
+
+    // MARK: - Corrections (words speech recognition gets wrong)
+
+    private var correctionsSection: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Words or names that dictation gets wrong, and how to write them. Dictidy fixes them in "
+                     + "every dictation and includes them in every rewrite.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !state.corrections.isEmpty {
+                    HStack {
+                        Text("Heard").frame(maxWidth: .infinity, alignment: .leading)
+                        Text("Write as").frame(maxWidth: .infinity, alignment: .leading)
+                        Color.clear.frame(width: 20, height: 1)
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    ScrollView {
+                        VStack(spacing: 4) {
+                            ForEach($state.corrections) { $correction in
+                                HStack {
+                                    TextField("Heard", text: $correction.heard)
+                                    TextField("Write as", text: $correction.replacement)
+                                    Button { removeCorrection(correction.id) } label: {
+                                        Image(systemName: "minus.circle")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Remove")
+                                    .frame(width: 20)
+                                }
+                                .textFieldStyle(.roundedBorder)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 160)
+                }
+                HStack {
+                    Button("Add") { state.corrections.append(Correction(heard: "", replacement: "")) }
+                    Spacer()
+                    Button("Paste a List…") { pastedCorrections = ""; showingPasteList = true }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Text("Corrections (applied to every dictation and rewrite)")
+                .font(.subheadline).fontWeight(.medium)
+        }
+        .sheet(isPresented: $showingPasteList) { pasteListSheet }
+    }
+
+    private var pasteListSheet: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Paste a List").font(.headline)
+            Text("One per line, like Scott → Scot or VJ -> Vijay.")
+                .font(.callout).foregroundStyle(.secondary)
+            TextEditor(text: $pastedCorrections)
+                .font(.body).frame(minWidth: 360, minHeight: 180)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+            HStack {
+                Spacer()
+                Button("Cancel") { showingPasteList = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    state.corrections = Corrections.merge(Corrections.parse(pastedCorrections),
+                                                          into: state.corrections)
+                    showingPasteList = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(Corrections.parse(pastedCorrections).isEmpty)
+            }
+        }
+        .padding()
+    }
+
+    private func removeCorrection(_ id: UUID) {
+        state.corrections.removeAll { $0.id == id }
     }
 
     // MARK: - Master (list + add/duplicate)

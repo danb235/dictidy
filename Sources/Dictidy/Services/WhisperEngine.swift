@@ -52,19 +52,21 @@ actor WhisperEngine {
 
     deinit { whisper_free(ctx) }
 
-    /// Transcribes 16 kHz mono Float32 samples to text. `language: nil` auto-detects.
-    func transcribe(_ samples: [Float]) async throws -> String {
+    /// Transcribes 16 kHz mono Float32 samples to text, auto-detecting the language. `hint` is text
+    /// Whisper treats as preceding context, used to nudge it toward the user's correct spellings.
+    func transcribe(_ samples: [Float], hint: String? = nil) async throws -> String {
         guard !samples.isEmpty else { throw EngineError.emptyTranscription }
 
         let cancellation = WhisperCancellationFlag()
         return try await withTaskCancellationHandler {
-            try transcribe(samples, cancellation: cancellation)
+            try transcribe(samples, hint: hint, cancellation: cancellation)
         } onCancel: {
             cancellation.cancel()
         }
     }
 
-    private func transcribe(_ samples: [Float], cancellation: WhisperCancellationFlag) throws -> String {
+    private func transcribe(_ samples: [Float], hint: String?,
+                            cancellation: WhisperCancellationFlag) throws -> String {
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
         params.print_progress = false
         params.print_realtime = false
@@ -79,11 +81,14 @@ actor WhisperEngine {
         params.abort_callback_user_data = Unmanaged.passUnretained(cancellation).toOpaque()
 
         // "auto" lets whisper detect the language (Auto Clean keeps the original language).
-        // The C string only needs to outlive the synchronous whisper_full call.
+        // The C strings only need to outlive the synchronous whisper_full call.
         let result: Int32 = "auto".withCString { lang in
             params.language = lang
-            return samples.withUnsafeBufferPointer { buf in
-                whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+            return (hint ?? "").withCString { prompt in
+                params.initial_prompt = hint == nil ? nil : prompt
+                return samples.withUnsafeBufferPointer { buf in
+                    whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+                }
             }
         }
         if cancellation.isCancelled { throw CancellationError() }

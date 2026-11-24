@@ -21,7 +21,8 @@ public struct RewriteConfiguration: Equatable {
     public let systemPrompt: String
 
     public init(instruction: Instruction, defaultModelID: String, models: [RewriteModel],
-                configuredProviders: Set<RewriteProvider>, baseSystemPrompt: String) throws {
+                configuredProviders: Set<RewriteProvider>, baseSystemPrompt: String,
+                corrections: [Correction] = []) throws {
         let id = instruction.modelOverrideID ?? defaultModelID
         guard let model = Self.availableModel(id, models: models, configuredProviders: configuredProviders) else {
             if let override = instruction.modelOverrideID { throw RewriteConfigurationError.modelUnavailable(override) }
@@ -29,7 +30,8 @@ public struct RewriteConfiguration: Equatable {
         }
         self.instruction = instruction
         self.model = model
-        systemPrompt = Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt)
+        let composed = Instruction.composeSystemPrompt(base: baseSystemPrompt, style: instruction.systemPrompt)
+        systemPrompt = Corrections.promptSection(corrections).map { composed + "\n\n" + $0 } ?? composed
     }
 
     /// Recheck the captured model before sending text, without resolving a different model or provider.

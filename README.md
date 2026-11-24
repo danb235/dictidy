@@ -109,6 +109,11 @@ The built-in choices are **Auto Clean**, for tidying dictated speech while keepi
 Editable **Base instructions** supply shared rules for preserving meaning, returning only the result,
 and formatting emails. The selected style controls how much to change the writing.
 
+**Corrections** fix names and words that dictation keeps getting wrong, such as a colleague's name.
+Add each word as you hear it typed and how it should be written, or paste a list like `Scott → Scot`.
+Dictidy suggests the correct spellings to Whisper, replaces the words in every dictated transcript
+(including plain Dictate), and includes the list in every rewrite. New installs start with an empty list.
+
 Existing custom instructions are preserved. An upgrade removes only untouched Formal, Friendly, and
 Translate to English presets and adds Rewrite if you do not already have an instruction with that name.
 
@@ -156,7 +161,7 @@ to the newest 100 entries.
 | Rewrite text, including Dictate + Clean transcripts | Sent to the provider of the selected model, Anthropic or OpenAI |
 | API keys | Stored separately in the macOS Keychain, sent only to their respective provider |
 | Whisper speech model | `~/Library/Application Support/Dictidy` |
-| Settings and instructions | `UserDefaults` under `com.opensource.dictidy` |
+| Settings, instructions, and corrections | `UserDefaults` under `com.opensource.dictidy` |
 | History | Local JSON in Application Support, newest 100 entries |
 
 ---

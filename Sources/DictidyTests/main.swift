@@ -202,6 +202,53 @@ check("emoji at the cut point stay intact",
       emojiPreview.dropFirst().dropLast(2).allSatisfy { $0 == "👍🏽" } && emojiPreview.count == 48)
 check("a non-positive limit is treated as 1", menuPreview("ab", limit: 0) == "“a…”")
 
+print("Corrections")
+do {
+    let pasted = """
+    * Scott → Scot
+    * VJ → Vijay
+    - NPM -> MPM
+    Add Intelligence > Ad Intelligence
+    • Furman - > Fermin
+    Ruben => Rueben
+    no separator here
+     → Missing
+    Empty →
+    """
+    let parsed = Corrections.parse(pasted)
+    check("parse reads every arrow style and bullet",
+          parsed.map { "\($0.heard)|\($0.replacement)" } == [
+            "Scott|Scot", "VJ|Vijay", "NPM|MPM", "Add Intelligence|Ad Intelligence", "Furman|Fermin", "Ruben|Rueben"])
+
+    let list = [Correction(heard: "Scott", replacement: "Scot"),
+                Correction(heard: "VJ", replacement: "Vijay"),
+                Correction(heard: "Add Intelligence", replacement: "Ad Intelligence"),
+                Correction(heard: "  ", replacement: "Ignored")]
+    check("apply replaces whole words, ignoring case",
+          Corrections.apply(list, to: "scott and VJ met Scott's team") == "Scot and Vijay met Scot's team")
+    check("apply leaves words that only contain the term",
+          Corrections.apply(list, to: "Scotty and VJs") == "Scotty and VJs")
+    check("apply replaces multi-word phrases",
+          Corrections.apply(list, to: "The Add Intelligence demo.") == "The Ad Intelligence demo.")
+    check("apply treats regex characters literally",
+          Corrections.apply([Correction(heard: "C++", replacement: "$1 Cpp")], to: "I like C++ a lot") == "I like $1 Cpp a lot")
+    check("apply with no corrections returns the text", Corrections.apply([], to: "Hello") == "Hello")
+
+    let merged = Corrections.merge([Correction(heard: "scott", replacement: "Scotty"),
+                                    Correction(heard: "Cody", replacement: "Kodi")], into: list)
+    check("merge updates an existing word in place and appends new ones",
+          merged.count == 5 && merged[0].replacement == "Scotty" && merged[0].id == list[0].id && merged[4].heard == "Cody")
+
+    check("whisperHint lists unique correct spellings",
+          Corrections.whisperHint(list + [Correction(heard: "Scot", replacement: "scot")])
+            == "Glossary: Scot, Vijay, Ad Intelligence.")
+    check("whisperHint is nil without corrections", Corrections.whisperHint([]) == nil)
+    check("promptSection lists each correction",
+          Corrections.promptSection(Array(list.prefix(2)))?.hasSuffix("\n- Scott → Scot\n- VJ → Vijay") == true)
+    check("promptSection is nil without complete corrections",
+          Corrections.promptSection([Correction(heard: "x", replacement: " ")]) == nil)
+}
+
 print("menuTooltip")
 check("short text is returned as is", menuTooltip("Hello there.") == "Hello there.")
 check("empty and blank text have no tooltip", menuTooltip("") == nil && menuTooltip(" \n\t\n ") == nil)
@@ -481,6 +528,12 @@ do {
     let inherited = try RewriteConfiguration(instruction: defaultInstruction, defaultModelID: opus.id,
         models: catalog, configuredProviders: [.anthropic, .openai], baseSystemPrompt: "BASE")
     check("Use default resolves the current default model", inherited.model == opus && inherited.systemPrompt == "BASE\n\nSTYLE")
+    let corrected = try RewriteConfiguration(instruction: defaultInstruction, defaultModelID: opus.id,
+        models: catalog, configuredProviders: [.anthropic], baseSystemPrompt: "BASE",
+        corrections: [Correction(heard: "VJ", replacement: "Vijay")])
+    check("corrections follow the base and style in the system prompt",
+          corrected.systemPrompt.hasPrefix("BASE\n\nSTYLE\n\nApply these corrections.")
+          && corrected.systemPrompt.hasSuffix("- VJ → Vijay"))
     let changedDefault = try RewriteConfiguration(instruction: defaultInstruction, defaultModelID: gpt.id,
         models: catalog, configuredProviders: [.anthropic, .openai], baseSystemPrompt: "BASE")
     check("new actions follow changes to the default", changedDefault.model == gpt)

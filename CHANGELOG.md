@@ -9,6 +9,12 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+### Added
+- **Corrections for names and words dictation gets wrong.** Keep your list under Settings →
+  Instructions → Corrections, or paste one in, like Scott → Scot. Dictidy suggests the right spellings
+  while transcribing, fixes them in every dictation, including plain Dictate, and applies them to every
+  rewrite. Move any list you kept inside an instruction's prompt here.
+
 ## [2.5.1] - 2026-11-18
 
 ### Changed

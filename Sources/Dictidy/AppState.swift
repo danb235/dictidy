@@ -65,6 +65,13 @@ final class AppState: ObservableObject {
         didSet { defaults.set(baseSystemPrompt, forKey: Keys.baseSystemPrompt) }
     }
 
+    /// Words speech recognition gets wrong and how to write them. See `Corrections`.
+    @Published var corrections: [Correction] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(corrections) { defaults.set(data, forKey: Keys.corrections) }
+        }
+    }
+
     @Published var restoreClipboard: Bool = true {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
     }
@@ -150,6 +157,7 @@ final class AppState: ObservableObject {
         static let playDictationTones = "playDictationTones"
         static let dictationCleanupInstruction = "dictationCleanupInstruction"
         static let baseSystemPrompt = "baseSystemPrompt"
+        static let corrections = "corrections"
         static let instructionDefaultsRevision = "instructionDefaultsRevision"
     }
 
@@ -261,7 +269,8 @@ final class AppState: ObservableObject {
 
     private func rewriteConfiguration(for instruction: Instruction) throws -> RewriteConfiguration {
         try RewriteConfiguration(instruction: instruction, defaultModelID: selectedModelID, models: models,
-                                 configuredProviders: configuredProviders, baseSystemPrompt: baseSystemPrompt)
+                                 configuredProviders: configuredProviders, baseSystemPrompt: baseSystemPrompt,
+                                 corrections: corrections)
     }
 
     private func configurationForAction(_ instruction: Instruction) -> RewriteConfiguration? {
@@ -612,7 +621,9 @@ final class AppState: ObservableObject {
             defer { self.finishProcessing(id: id) }
             do {
                 let engine = try await self.resolveEngine()
-                let transcript = try await engine.transcribe(samples)
+                let corrections = self.corrections
+                let heard = try await engine.transcribe(samples, hint: Corrections.whisperHint(corrections))
+                let transcript = Corrections.apply(corrections, to: heard)
                 guard self.processingIsCurrent(id) else { return }
                 switch mode {
                 case .raw:
@@ -904,6 +915,10 @@ final class AppState: ObservableObject {
 
         // Upgrade the exact previous default; retain user-authored base instructions.
         baseSystemPrompt = Instruction.migratedBaseSystemPrompt(defaults.string(forKey: Keys.baseSystemPrompt))
+        if let data = defaults.data(forKey: Keys.corrections),
+           let list = try? JSONDecoder().decode([Correction].self, from: data) {
+            corrections = list
+        }
 
         selectedModelID = RewriteModel.migratedSelection(saved: defaults.string(forKey: Keys.selectedModel),
             legacyAnthropicID: defaults.string(forKey: "selectedModelID"))
