@@ -9,6 +9,8 @@ Release notes and shown in the app's "Update available" screen. To cut a release
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-24
+
 ### Added
 - **Corrections for names and words dictation gets wrong.** Keep your list under Settings →
   Instructions → Corrections, or paste one in, like Scott → Scot. Dictidy suggests the right spellings
